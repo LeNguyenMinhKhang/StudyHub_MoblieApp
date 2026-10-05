@@ -203,11 +203,5 @@ Giai đoạn 6 (Hoàn thiện)   ──► Tối ưu UI/UX, sửa lỗi, hoàn t
 
 ```properties
 SUPABASE_URL="https://your-project-id.supabase.co"
-SUPABASE_ANON_KEY="your-supabase-anon-key"
+SUPABASE_ANON_KEY="your-supabase-anon-key-"
 ```
-
----
-
-## 📄 Giấy Phép & Bản Quyền
-
-Dự án Đồ Án Tốt Nghiệp / Môn Học - **StudyHub Team**.
