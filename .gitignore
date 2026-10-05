@@ -1,0 +1,20 @@
+# Build outputs
+build/
+**/build/
+
+# IDE & Config
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+
+# Secrets & Credentials
+*.jks
+*.keystore
+signing.properties
+secrets.properties
+google-services.json
