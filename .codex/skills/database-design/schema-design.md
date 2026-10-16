@@ -1,56 +1,33 @@
-# Schema Design Principles
+﻿# Supabase Postgres Schema Design
 
-> Normalization, primary keys, timestamps, relationships.
+Model invariants in PostgreSQL so every access path observes the same data rules.
 
-## Normalization Decision
+## Tables and columns
 
-```
-When to normalize (separate tables):
-├── Data is repeated across rows
-├── Updates would need multiple changes
-├── Relationships are clear
-└── Query patterns benefit
+- Use a schema with deliberate exposure. Keep internal tables and helper functions outside API-exposed schemas when possible.
+- Use `uuid` for IDs that must be generated across clients or services; use identity columns where sequential local identifiers are appropriate.
+- Use `timestamptz` for instants. Store timestamps in UTC and format them at the application boundary.
+- Prefer appropriate native types and `NOT NULL`, `CHECK`, `UNIQUE`, and foreign-key constraints over application-only validation.
+- Make delete behavior explicit (`RESTRICT`, `CASCADE`, or `SET NULL`) based on ownership and retention rules.
+- Add `created_at`/`updated_at` only where lifecycle tracking is useful; define how `updated_at` is maintained.
+- Avoid storing relational data in JSONB. Use JSONB for genuinely flexible documents that are queried as documents.
 
-When to denormalize (embed/duplicate):
-├── Read performance critical
-├── Data rarely changes
-├── Always fetched together
-└── Simpler queries needed
-```
+## Example
 
-## Primary Key Selection
+```sql
+create table public.study_groups (
+    id uuid primary key default gen_random_uuid(),
+    owner_id uuid not null references auth.users(id) on delete cascade,
+    name text not null check (length(trim(name)) between 1 and 120),
+    created_at timestamptz not null default now()
+);
 
-| Type | Use When |
-|------|----------|
-| **UUID** | Distributed systems, security |
-| **ULID** | UUID + sortable by time |
-| **Auto-increment** | Simple apps, single database |
-| **Natural key** | Rarely (business meaning) |
-
-## Timestamp Strategy
-
-```
-For every table:
-├── created_at → When created
-├── updated_at → Last modified
-└── deleted_at → Soft delete (if needed)
-
-Use TIMESTAMPTZ (with timezone) not TIMESTAMP
+alter table public.study_groups enable row level security;
+create index study_groups_owner_id_idx on public.study_groups (owner_id);
 ```
 
-## Relationship Types
+The table is not safe for API exposure until grants and policies are defined and tested. See [security-rls.md](security-rls.md).
 
-| Type | When | Implementation |
-|------|------|----------------|
-| **One-to-One** | Extension data | Separate table with FK |
-| **One-to-Many** | Parent-children | FK on child table |
-| **Many-to-Many** | Both sides have many | Junction table |
+## Spring mapping
 
-## Foreign Key ON DELETE
-
-```
-├── CASCADE → Delete children with parent
-├── SET NULL → Children become orphans
-├── RESTRICT → Prevent delete if children exist
-└── SET DEFAULT → Children get default value
-```
+Map only the columns needed by the domain model. Keep database entities separate from API DTOs. If schema changes are made by Supabase migrations, configure Hibernate to validate rather than create or update production tables.

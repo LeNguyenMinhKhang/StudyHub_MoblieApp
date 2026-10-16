@@ -1,42 +1,12 @@
-# API Style Selection (2025)
+﻿# API Style Selection
 
-> REST vs GraphQL vs tRPC - Hangi durumda hangisi?
+Choose the communication style based on consumers and data needs.
 
-## Decision Tree
+| Context | Suitable approach |
+|---|---|
+| Public API or multiple client platforms | REST with OpenAPI |
+| Complex relationships and flexible client queries | GraphQL |
+| Real-time or event-driven workflows | WebSocket or messaging with an event contract |
+| Internal service-to-service communication | REST for simplicity or gRPC for typed RPC needs |
 
-```
-Who are the API consumers?
-│
-├── Public API / Multiple platforms
-│   └── REST + OpenAPI (widest compatibility)
-│
-├── Complex data needs / Multiple frontends
-│   └── GraphQL (flexible queries)
-│
-├── TypeScript frontend + backend (monorepo)
-│   └── tRPC (end-to-end type safety)
-│
-├── Real-time / Event-driven
-│   └── WebSocket + AsyncAPI
-│
-└── Internal microservices
-    └── gRPC (performance) or REST (simplicity)
-```
-
-## Comparison
-
-| Factor | REST | GraphQL | tRPC |
-|--------|------|---------|------|
-| **Best for** | Public APIs | Complex apps | TS monorepos |
-| **Learning curve** | Low | Medium | Low (if TS) |
-| **Over/under fetching** | Common | Solved | Solved |
-| **Type safety** | Manual (OpenAPI) | Schema-based | Automatic |
-| **Caching** | HTTP native | Complex | Client-based |
-
-## Selection Questions
-
-1. Who are the API consumers?
-2. Is the frontend TypeScript?
-3. How complex are the data relationships?
-4. Is caching critical?
-5. Public or internal API?
+Before choosing, identify consumers, compatibility and caching needs, data complexity, and operational constraints. For Android/Kotlin clients, keep the API contract explicit through OpenAPI or a shared schema; do not couple clients to server implementation details.

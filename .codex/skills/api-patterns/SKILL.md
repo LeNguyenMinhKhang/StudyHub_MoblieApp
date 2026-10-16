@@ -1,81 +1,30 @@
----
-name: api-patterns
-description: API design principles and decision-making. REST vs GraphQL vs tRPC selection, response formats, versioning, pagination.
-allowed-tools: Read, Write, Edit, Glob, Grep
----
+﻿# API Patterns
 
-# API Patterns
+Choose an API style based on its consumers, deployment model, and operational needs.
 
-> API design principles and decision-making for 2025.
-> **Learn to THINK, not copy fixed patterns.**
+## Content map
 
-## 🎯 Selective Reading Rule
+| File | Description | When to read |
+|---|---|---|
+| `api-style.md` | REST, GraphQL, and event-driven API selection | Choosing an API style |
+| `rest.md` | Resource naming, HTTP methods, and status codes | Designing REST APIs |
+| `response.md` | Response envelopes, errors, and pagination | Defining response contracts |
+| `graphql.md` | Schema design, use cases, and security | Considering GraphQL |
+| `versioning.md` | URI, header, and query versioning | Planning API evolution |
+| `auth.md` | JWT, OAuth, passkeys, and API keys | Selecting authentication |
+| `rate-limiting.md` | Token bucket and sliding window approaches | Protecting APIs |
+| `documentation.md` | OpenAPI/Swagger practices | Documenting APIs |
+| `security-testing.md` | OWASP API risks and authorization tests | Security reviews |
 
-**Read ONLY files relevant to the request!** Check the content map, find what you need.
+## Design checklist
 
----
+- Identify API consumers and compatibility requirements.
+- Select REST, GraphQL, or event-driven communication for the use case.
+- Define consistent success and error responses.
+- Plan authentication, authorization, rate limits, and versioning.
+- Document public contracts and use appropriate HTTP status codes.
+- Validate input and avoid exposing internal errors.
 
-## 📑 Content Map
+## Validator
 
-| File | Description | When to Read |
-|------|-------------|--------------|
-| `api-style.md` | REST vs GraphQL vs tRPC decision tree | Choosing API type |
-| `rest.md` | Resource naming, HTTP methods, status codes | Designing REST API |
-| `response.md` | Envelope pattern, error format, pagination | Response structure |
-| `graphql.md` | Schema design, when to use, security | Considering GraphQL |
-| `trpc.md` | TypeScript monorepo, type safety | TS fullstack projects |
-| `versioning.md` | URI/Header/Query versioning | API evolution planning |
-| `auth.md` | JWT, OAuth, Passkey, API Keys | Auth pattern selection |
-| `rate-limiting.md` | Token bucket, sliding window | API protection |
-| `documentation.md` | OpenAPI/Swagger best practices | Documentation |
-| `security-testing.md` | OWASP API Top 10, auth/authz testing | Security audits |
-
----
-
-## 🔗 Related Skills
-
-| Need | Skill |
-|------|-------|
-| API implementation | `@[skills/backend-development]` |
-| Data structure | `@[skills/database-design]` |
-| Security details | `@[skills/security-hardening]` |
-
----
-
-## ✅ Decision Checklist
-
-Before designing an API:
-
-- [ ] **Asked user about API consumers?**
-- [ ] **Chosen API style for THIS context?** (REST/GraphQL/tRPC)
-- [ ] **Defined consistent response format?**
-- [ ] **Planned versioning strategy?**
-- [ ] **Considered authentication needs?**
-- [ ] **Planned rate limiting?**
-- [ ] **Documentation approach defined?**
-
----
-
-## ❌ Anti-Patterns
-
-**DON'T:**
-- Default to REST for everything
-- Use verbs in REST endpoints (/getUsers)
-- Return inconsistent response formats
-- Expose internal errors to clients
-- Skip rate limiting
-
-**DO:**
-- Choose API style based on context
-- Ask about client requirements
-- Document thoroughly
-- Use appropriate status codes
-
----
-
-## Script
-
-| Script | Purpose | Command |
-|--------|---------|---------|
-| `scripts/api_validator.py` | API endpoint validation | `python scripts/api_validator.py <project_path>` |
-
+`scripts/api_validator.py` scans API source and OpenAPI specifications.

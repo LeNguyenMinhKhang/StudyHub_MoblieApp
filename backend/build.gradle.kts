@@ -6,8 +6,8 @@ if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
 
-val supabaseUrl = localProperties.getProperty("SUPABASE_URL") ?: ""
-val supabaseAnonKey = localProperties.getProperty("SUPABASE_ANON_KEY") ?: ""
+val supabaseUrl = (localProperties.getProperty("SUPABASE_URL") ?: "").trim('"', ' ')
+val supabaseAnonKey = (localProperties.getProperty("SUPABASE_ANON_KEY") ?: "").trim('"', ' ')
 
 plugins {
     alias(libs.plugins.android.library)

@@ -1,22 +1,12 @@
-# Versioning Strategies
+﻿# Versioning Strategies
 
-> Plan for API evolution from day one.
-
-## Decision Factors
+Plan API evolution based on consumer compatibility needs.
 
 | Strategy | Implementation | Trade-offs |
-|----------|---------------|------------|
-| **URI** | /v1/users | Clear, easy caching |
-| **Header** | Accept-Version: 1 | Cleaner URLs, harder discovery |
-| **Query** | ?version=1 | Easy to add, messy |
-| **None** | Evolve carefully | Best for internal, risky for public |
+|---|---|---|
+| URI | `/v1/users` | Clear and easy to cache |
+| Header | `Accept-Version: 1` | Clean URLs, less visible |
+| Query | `?version=1` | Easy to add, can clutter URLs |
+| No explicit version | Evolve carefully | Suitable for internal APIs with coordinated consumers |
 
-## Versioning Philosophy
-
-```
-Consider:
-├── Public API? → Version in URI
-├── Internal only? → May not need versioning
-├── GraphQL? → Typically no versions (evolve schema)
-├── tRPC? → Types enforce compatibility
-```
+Public REST APIs should document compatibility expectations in OpenAPI. GraphQL APIs typically evolve through schema additions and deprecations rather than endpoint versions.

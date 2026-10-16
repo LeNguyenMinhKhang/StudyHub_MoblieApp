@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 API Validator - Checks API endpoints for best practices.
 Validates OpenAPI specs, response formats, and common issues.
@@ -18,10 +18,10 @@ except AttributeError:
 def find_api_files(project_path: Path) -> list:
     """Find API-related files."""
     patterns = [
-        "**/*api*.ts", "**/*api*.js", "**/*api*.py",
-        "**/routes/*.ts", "**/routes/*.js", "**/routes/*.py",
-        "**/controllers/*.ts", "**/controllers/*.js",
-        "**/endpoints/*.ts", "**/endpoints/*.py",
+        "**/*api*.kt", "**/*api*.java", "**/*api*.py",
+        "**/routes/*.kt", "**/routes/*.java", "**/routes/*.py",
+        "**/controllers/*.kt", "**/controllers/*.java",
+        "**/endpoints/*.kt", "**/endpoints/*.java", "**/endpoints/*.py",
         "**/*.openapi.json", "**/*.openapi.yaml",
         "**/swagger.json", "**/swagger.yaml",
         "**/openapi.json", "**/openapi.yaml"
@@ -32,7 +32,7 @@ def find_api_files(project_path: Path) -> list:
         files.extend(project_path.glob(pattern))
     
     # Exclude node_modules, etc.
-    return [f for f in files if not any(x in str(f) for x in ['node_modules', '.git', 'dist', 'build', '__pycache__'])]
+    return [f for f in files if not any(x in str(f) for x in ['.git', 'dist', 'build', '__pycache__'])]
 
 def check_openapi_spec(file_path: Path) -> dict:
     """Check OpenAPI/Swagger specification."""
@@ -209,3 +209,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
