@@ -81,6 +81,10 @@ class AuthRepository(
         }
     }
 
+    suspend fun getCurrentUserId(): String? = withContext(Dispatchers.IO) {
+        SupabaseClient.client.auth.currentUserOrNull()?.id
+    }
+
     // Kiểm tra phiên làm việc hiện tại khi khởi động app
     suspend fun checkCurrentSession(): Resource<Profile?> = withContext(Dispatchers.IO) {
         try {
