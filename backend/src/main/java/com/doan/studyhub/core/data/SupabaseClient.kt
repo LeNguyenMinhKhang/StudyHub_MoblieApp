@@ -1,5 +1,6 @@
 package com.doan.studyhub.core.data
 
+import com.doan.studyhub.core.data.BuildConfig
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
