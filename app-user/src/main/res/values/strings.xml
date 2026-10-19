@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="profile_avatar">Ảnh đại diện</string>
+    <string name="profile_unavailable">Không tìm thấy hồ sơ hoặc bạn không có quyền xem.</string>
+    <string name="profile_empty_bio">Chưa có giới thiệu.</string>
+    <string name="profile_joined">Tham gia: %1$s</string>
+    <string name="profile_edit">Chỉnh sửa hồ sơ</string>
+    <string name="profile_find">Tìm hồ sơ bằng tên người dùng</string>
+    <string name="profile_retry">Thử lại</string>
+    <string name="profile_lookup_title">Tìm hồ sơ</string>
+    <string name="profile_lookup_hint">Tên người dùng</string>
+    <string name="profile_lookup_action">Tìm</string>
+    <string name="profile_cancel">Hủy</string>
+    <string name="profile_save">Lưu</string>
+    <string name="profile_change_avatar">Đổi ảnh đại diện</string>
+    <string name="profile_remove_avatar">Ẩn ảnh trên thiết bị</string>
+    <string name="profile_discard_title">Bỏ thay đổi?</string>
+    <string name="profile_discard_message">Những thay đổi chưa lưu sẽ bị mất.</string>
+    <string name="profile_discard">Bỏ thay đổi</string>
+    <string name="profile_partial_save">Thông tin đã lưu nhưng chưa lưu được ảnh. Hãy thử lại.</string>
+    <string name="profile_display_name">Tên hiển thị</string>
+    <string name="profile_username">Tên người dùng</string>
+    <string name="profile_bio">Giới thiệu</string>
+</resources>

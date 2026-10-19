@@ -5,7 +5,6 @@ import com.doan.studyhub.core.data.model.Profile
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.user.UserSession
-import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -13,11 +12,10 @@ import kotlinx.serialization.json.put
 class AuthRemoteDataSource {
 
     private val auth = SupabaseClient.client.auth
-    private val postgrest = SupabaseClient.client.postgrest
+    private val profiles = ProfileRemoteDataSource()
 
-    // Đăng ký tài khoản và lưu profile vào bảng "profiles"
-    suspend fun signUp(email: String, password: String, username: String, displayName: String): Profile {
-        // 1. Tạo tài khoản Supabase Auth
+    // Hồ sơ được tạo từ Auth metadata bởi database trigger.
+    suspend fun signUp(email: String, password: String, username: String, displayName: String): String? {
         auth.signUpWith(Email) {
             this.email = email
             this.password = password
@@ -27,24 +25,7 @@ class AuthRemoteDataSource {
             }
         }
 
-        // Lấy thông tin user vừa tạo
-        val currentUser = auth.currentUserOrNull()
-            ?: throw IllegalStateException("Không thể lấy thông tin người dùng sau khi đăng ký")
-
-        val profile = Profile(
-            id = currentUser.id,
-            username = username,
-            displayName = displayName,
-            avatarUrl = null,
-            bio = null,
-            role = "user",
-            isBanned = false
-        )
-
-        // 2. Insert 1 dòng vào bảng "profiles"
-        postgrest["profiles"].insert(profile)
-
-        return profile
+        return auth.currentUserOrNull()?.id
     }
 
     // Đăng nhập bằng Email và Mật khẩu
@@ -79,12 +60,7 @@ class AuthRemoteDataSource {
 
     // Lấy thông tin Profile từ bảng "profiles"
     suspend fun getProfile(userId: String): Profile? {
-        return postgrest["profiles"]
-            .select {
-                filter {
-                    eq("id", userId)
-                }
-            }
-            .decodeSingleOrNull<Profile>()
+        if (auth.currentUserOrNull()?.id != userId) return null
+        return profiles.getMine()
     }
 }
