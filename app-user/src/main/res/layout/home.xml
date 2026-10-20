@@ -104,8 +104,7 @@
                 android:layout_height="52dp"
                 android:layout_marginBottom="10dp"
                 android:contentDescription="Avatar người dùng"
-                android:src="@drawable/ic_person"
-                app:tint="@android:color/white" />
+                android:src="@drawable/ic_person" />
 
             <TextView
                 android:id="@+id/tvDrawerName"
