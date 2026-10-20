@@ -1,4 +1,3 @@
-
 package com.doan.studyhub.user.ui.subject
 
 import android.os.Bundle
@@ -9,16 +8,26 @@ import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.doan.studyhub.core.data.repository.AuthRepository
+import com.doan.studyhub.core.data.repository.PostRepository
 import com.doan.studyhub.core.data.repository.SubjectRepository
 import com.doan.studyhub.user.R
+import com.doan.studyhub.user.ui.post.PostAdapter
+import com.doan.studyhub.user.ui.post.PostCreateFragment
+import com.doan.studyhub.user.ui.post.PostDetailFragment
+import com.doan.studyhub.user.ui.home.Home
+import com.doan.studyhub.user.ui.profile.ProfileFragment
 import kotlinx.coroutines.launch
 
 class SubjectDetailFragment : Fragment() {
 
     private val subjectRepository = SubjectRepository()
+    private val postRepository = PostRepository()
     private val authRepository = AuthRepository()
 
     private var subjectId: String = ""
@@ -29,6 +38,10 @@ class SubjectDetailFragment : Fragment() {
     private lateinit var progress: ProgressBar
     private lateinit var errorText: TextView
     private lateinit var followButton: Button
+    private lateinit var emptyText: TextView
+    private lateinit var recyclerView: RecyclerView
+
+    private lateinit var postAdapter: PostAdapter
 
     companion object {
         private const val ARG_SUBJECT_ID = "subject_id"
@@ -61,6 +74,8 @@ class SubjectDetailFragment : Fragment() {
         progress = view.findViewById(R.id.progressSubjectDetail)
         errorText = view.findViewById(R.id.txtSubjectDetailError)
         followButton = view.findViewById(R.id.btnFollowSubjectDetail)
+        emptyText = view.findViewById(R.id.tvSubjectPostsEmpty)
+        recyclerView = view.findViewById(R.id.rvSubjectPosts)
 
         subjectId = arguments?.getString(ARG_SUBJECT_ID).orEmpty()
 
@@ -73,10 +88,73 @@ class SubjectDetailFragment : Fragment() {
             toggleFollow()
         }
 
+        setupPostAdapter()
+
         if (subjectId.isBlank()) {
             showError("Không tìm thấy mã môn học.")
         } else {
             loadSubjectDetail()
+            loadSubjectPosts()
+        }
+    }
+
+    private fun setupPostAdapter() {
+        val currentUserId = authRepository.getCurrentUserIdSync()
+        postAdapter = PostAdapter(
+            fragment = this@SubjectDetailFragment,
+            currentUserId = currentUserId,
+            onPostClick = { detail ->
+                detail.post.id?.let { postId ->
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.containerMain, PostDetailFragment.newInstance(postId))
+                        .addToBackStack(null)
+                        .commit()
+                }
+            },
+            onSubjectClick = { },
+            onEditClick = { detail ->
+                detail.post.id?.let { postId ->
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.containerMain, PostCreateFragment.newInstance(postId))
+                        .addToBackStack(null)
+                        .commit()
+                }
+            },
+            onDeleteClick = { detail ->
+                detail.post.id?.let { postId ->
+                    deletePost(postId)
+                }
+            },
+            onAuthorClick = { authorId ->
+                (parentFragment as? Home)?.openDetail(ProfileFragment.forUser(authorId))
+            }
+        )
+
+        recyclerView.layoutManager = LinearLayoutManager(requireContext())
+        recyclerView.adapter = postAdapter
+    }
+
+    private fun loadSubjectPosts() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val posts = postRepository.getPosts(subjectId = subjectId)
+                postAdapter.submitList(posts)
+                emptyText.isVisible = posts.isEmpty()
+            } catch (e: Exception) {
+                // Ignore error in subject detail posts
+            }
+        }
+    }
+
+    private fun deletePost(postId: String) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                postRepository.deletePost(postId)
+                Toast.makeText(requireContext(), "Đã xóa bài viết", Toast.LENGTH_SHORT).show()
+                loadSubjectPosts()
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Không thể xóa bài viết: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 

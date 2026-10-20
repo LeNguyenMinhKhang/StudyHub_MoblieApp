@@ -5,9 +5,10 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@drawable/logo1"
-        android:roundIcon="@drawable/logo1"
+        android:icon="@drawable/logo3"
+        android:roundIcon="@drawable/logo3"
         android:label="StudyHub"
+        android:usesCleartextTraffic="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.StudyHub">
         <activity

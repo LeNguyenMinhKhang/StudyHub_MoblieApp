@@ -14,13 +14,22 @@ object AvatarImageLoader {
         val model: Any? = when (selection.mode) {
             AvatarMode.HIDDEN -> null
             AvatarMode.LOCAL -> selection.file?.takeIf { it.isFile }
-            AvatarMode.REMOTE -> remoteUrl?.takeIf { Uri.parse(it).scheme == "https" }
+            AvatarMode.REMOTE -> remoteUrl?.takeIf { url ->
+                url.isNotBlank() && run {
+                    val scheme = Uri.parse(url).scheme
+                    scheme == "https" || scheme == "http"
+                }
+            }
         }
         if (model == null) {
             request.clear(view)
             view.setImageResource(R.drawable.ic_person)
         } else {
-            request.load(model).placeholder(R.drawable.ic_person).error(R.drawable.ic_person).into(view)
+            request.load(model)
+                .circleCrop()
+                .placeholder(R.drawable.ic_person)
+                .error(R.drawable.ic_person)
+                .into(view)
         }
     }
 }

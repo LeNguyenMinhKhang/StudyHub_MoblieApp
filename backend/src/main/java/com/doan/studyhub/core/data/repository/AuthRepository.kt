@@ -52,6 +52,10 @@ class AuthRepository(
         SupabaseClient.client.auth.currentUserOrNull()?.id
     }
 
+    fun getCurrentUserIdSync(): String? {
+        return SupabaseClient.client.auth.currentUserOrNull()?.id
+    }
+
     suspend fun checkCurrentSession(): ApiResponse<SessionOutcome> = withContext(Dispatchers.IO) {
         api.execute(Operation.AUTH_SESSION) {
             val session = remoteDataSource.getCurrentSession()

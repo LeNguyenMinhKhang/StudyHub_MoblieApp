@@ -1,10 +1,10 @@
 package com.doan.studyhub.core.data
 
-import com.doan.studyhub.core.data.BuildConfig
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.storage.Storage
 import kotlin.time.Duration.Companion.seconds
 
 // Singleton khởi tạo SupabaseClient duy nhất cho ứng dụng
@@ -17,6 +17,7 @@ object SupabaseClient {
             requestTimeout = 30.seconds
             install(Auth)
             install(Postgrest)
+            install(Storage)
         }
     }
 }
