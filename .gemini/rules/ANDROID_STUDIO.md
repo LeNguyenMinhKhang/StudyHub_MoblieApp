@@ -1,0 +1,18 @@
+# Android Studio and Gemini integration
+
+- `.gemini/skills/` contains the merged project skills and generated OpenSpec skills.
+- Android Studio Quail 1 and newer discovers the copies in `.android-studio/skills/`. Use `@` in Agent Mode to select a skill, or request it by name. `.gemini/commands/opsx/*.toml` is for Gemini CLI; do not assume those slash commands are registered in Android Studio.
+- Read only the relevant skill entrypoint, then its supporting references as needed. Use the file, search, terminal, and device tools actually exposed by the IDE. Ask a question in chat if a workflow names a question tool that is unavailable.
+- Run CLI commands from the repository root. On Windows PowerShell use `openspec.cmd` and `.\gradlew.bat`; do not change execution policy just to run the CLI.
+- Android UI uses `android-kotlin-frontend`; the Kotlin Supabase library uses `kotlin-supabase-backend`. Retain `java-spring-backend` only for an actual Spring service.
+- For broad changes, use `openspec-propose`, review the artifacts, then `openspec-apply-change`. Use `openspec-explore` for investigation, `openspec-update-change` for revised requirements, `openspec-sync-specs` for explicit spec synchronization, and `openspec-archive-change` after implementation and review are complete.
+- Follow the local workflow's review and completion requirements even when a generated OpenSpec skill allows proceeding with warnings. Do not archive incomplete work. Use the existing `openspec/config.yaml`; do not reinitialize the repository just because an older template mentions `openspec/project.md` or `openspec/AGENTS.md`.
+- `.gemini/agents/*.md` are specialist guidance to read when relevant, not automatically installed subagents. `backend-specialist`, `database-architect`, `security-auditor`, and `orchestrator` are the available profiles. Execute their relevant steps in the current agent unless delegation is explicitly requested and the runtime supports it.
+- `.gemini/workflows/*.md` contains the migrated project workflows. Their `studyhub-*` skills make them selectable in Android Studio. Workflow names such as `/plan` are labels, not a promise that Android Studio registers slash commands.
+- Ask for missing information only when it materially blocks the task; reuse answers and authorization already supplied. Use verification appropriate to the change. Configuration/documentation changes do not require application builds unless they affect the build.
+- `.gemini/reference/` retains legacy source material for comparison only. Do not load it as active project instructions.
+- After changing shared skills or running `openspec update`, run `python .gemini/scripts/sync_skills.py`, then `python .gemini/scripts/sync_skills.py --check` to refresh and verify the Android Studio copies. Edit the source indicated in `.gemini/skill-sources.json` for a shared skill; edit `.gemini/skills/` for Gemini-only skills. Do not edit generated `.android-studio/skills/` copies directly.
+
+## Remaining-artifact procedure
+
+The core OpenSpec profile does not install a separate continue skill. When the user asks to complete an existing change's missing planning artifacts, run `openspec.cmd status --change <id> --json`, select the next ready artifact, and read `openspec.cmd instructions <artifact-id> --change <id> --json`. Read its dependencies, follow its template/rules and write to the resolved output location (expand glob patterns into actual files). Recheck status and report what was created. Preserve an explicitly selected store flag. This completes planning artifacts only, not application implementation; do not silently expand an update-only request into artifact creation.

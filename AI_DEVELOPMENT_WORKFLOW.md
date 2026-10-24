@@ -62,7 +62,9 @@ Tóm tắt mục tiêu đã xử lý, file quan trọng đã sửa, quyết đ�
 
 ### Điều kiện bắt đầu
 
-Repo hiện có workflow mẫu trong `.agent/workflows/openspec-*.md`, nhưng chưa có thư mục `openspec/`. Trước change đầu tiên, cần khởi tạo OpenSpec theo phiên bản CLI mà nhóm chọn và tạo/cập nhật project context. Không coi workflow mẫu là bằng chứng OpenSpec đã được cài hoặc cấu hình.
+Repo đã có `openspec/config.yaml`, canonical specs và lịch sử change trong `openspec/`. Kiểm tra CLI bằng `openspec.cmd --version` trên Windows và dùng cấu hình hiện có; không khởi tạo lại chỉ vì một workflow cũ nhắc đến `openspec/project.md` hoặc `openspec/AGENTS.md`.
+
+Với agent Gemini trong Android Studio, đọc [hướng dẫn cấu hình Gemini](.gemini/README.md). Rules được nạp qua `GEMINI.md` ở root; skills nằm trong `.android-studio/skills/` và có thể chọn bằng `@`. `.gemini/commands/opsx/` dành cho Gemini CLI, không tự đăng ký slash command trong Android Studio. Sau khi cập nhật skills, chạy `python .gemini/scripts/sync_skills.py` và `python .gemini/scripts/sync_skills.py --check`.
 
 ### A. Proposal — ghi yêu cầu, chưa sửa code
 
