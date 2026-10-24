@@ -1,0 +1,268 @@
+{
+  "android-kotlin-frontend/SKILL.md": {
+    "sources": [
+      ".codex/skills/android-kotlin-frontend/SKILL.md"
+    ],
+    "sha256": "0232cf240d583fcdff2f1c5328fa4ce1b59609f5995a52da0a1a4d3e11d38c57"
+  },
+  "api-patterns/SKILL.md": {
+    "sources": [
+      ".agent/skills/api-patterns/SKILL.md",
+      ".claude/skills/api-patterns/SKILL.md",
+      ".codex/skills/api-patterns/SKILL.md"
+    ],
+    "sha256": "1bcfd4ce57c00467e1c7782665299090652b009cdd70147b6ab8568fe0cd0689"
+  },
+  "api-patterns/api-style.md": {
+    "sources": [
+      ".agent/skills/api-patterns/api-style.md",
+      ".claude/skills/api-patterns/api-style.md",
+      ".codex/skills/api-patterns/api-style.md"
+    ],
+    "sha256": "2a6f5743d6d6cb3943600bbdc89efa14e2c77b226fd474c2312a837395373e57"
+  },
+  "api-patterns/auth.md": {
+    "sources": [
+      ".agent/skills/api-patterns/auth.md",
+      ".claude/skills/api-patterns/auth.md",
+      ".codex/skills/api-patterns/auth.md"
+    ],
+    "sha256": "d35ba351bf05454ad097522b80fb19368b47f66ff4ab0e76a0d69e303c2b72f0"
+  },
+  "api-patterns/documentation.md": {
+    "sources": [
+      ".agent/skills/api-patterns/documentation.md",
+      ".claude/skills/api-patterns/documentation.md",
+      ".codex/skills/api-patterns/documentation.md"
+    ],
+    "sha256": "aa1d0262be74814e7d72d5dd2a4acf074235e8ca33c0dff0ec986adfd962a124"
+  },
+  "api-patterns/graphql.md": {
+    "sources": [
+      ".agent/skills/api-patterns/graphql.md",
+      ".claude/skills/api-patterns/graphql.md",
+      ".codex/skills/api-patterns/graphql.md"
+    ],
+    "sha256": "f7f49e84697c8993d9cdc66b3ada56f71b01d2221107cfe70bbf291628136b8c"
+  },
+  "api-patterns/rate-limiting.md": {
+    "sources": [
+      ".agent/skills/api-patterns/rate-limiting.md",
+      ".claude/skills/api-patterns/rate-limiting.md",
+      ".codex/skills/api-patterns/rate-limiting.md"
+    ],
+    "sha256": "f1538d288ce362012241a6085beb3b5ff06d11f754b5867bf0adb7b62afd0657"
+  },
+  "api-patterns/response.md": {
+    "sources": [
+      ".agent/skills/api-patterns/response.md",
+      ".claude/skills/api-patterns/response.md",
+      ".codex/skills/api-patterns/response.md"
+    ],
+    "sha256": "37bc83dfd2c4365ea9f50e531149c22e6ecdafd9d0b66c2170528b2d88a8cfa6"
+  },
+  "api-patterns/rest.md": {
+    "sources": [
+      ".agent/skills/api-patterns/rest.md",
+      ".claude/skills/api-patterns/rest.md",
+      ".codex/skills/api-patterns/rest.md"
+    ],
+    "sha256": "20bbf589c4f583b482f4610f41d25669af7224e989427353f18092e11d59970f"
+  },
+  "api-patterns/scripts/api_validator.py": {
+    "sources": [
+      ".agent/skills/api-patterns/scripts/api_validator.py",
+      ".claude/skills/api-patterns/scripts/api_validator.py",
+      ".codex/skills/api-patterns/scripts/api_validator.py"
+    ],
+    "sha256": "e95d118f0b17f526ed781bd28b7573ff69773814c23dc4c141963c1c855fa752"
+  },
+  "api-patterns/security-testing.md": {
+    "sources": [
+      ".agent/skills/api-patterns/security-testing.md",
+      ".claude/skills/api-patterns/security-testing.md",
+      ".codex/skills/api-patterns/security-testing.md"
+    ],
+    "sha256": "e5cbe598d1b44356362325d5f55ee703efdbf8908a92cbd91a9c989d1ec1f9de"
+  },
+  "api-patterns/versioning.md": {
+    "sources": [
+      ".agent/skills/api-patterns/versioning.md",
+      ".claude/skills/api-patterns/versioning.md",
+      ".codex/skills/api-patterns/versioning.md"
+    ],
+    "sha256": "2cae4ef6bb2604dc7af78128293bf7ea250f878641e22ab1fa0a177116725684"
+  },
+  "clean-code/SKILL.md": {
+    "sources": [
+      ".agent/skills/clean-code/SKILL.md",
+      ".claude/skills/clean-code/SKILL.md",
+      ".codex/skills/clean-code/SKILL.md"
+    ],
+    "sha256": "bddce0b57474fd064f83b7de1d66e2641cf19fa7df899366bed8fb6f2abe512b"
+  },
+  "code-review-checklist/SKILL.md": {
+    "sources": [
+      ".agent/skills/code-review-checklist/SKILL.md",
+      ".claude/skills/code-review-checklist/SKILL.md",
+      ".codex/skills/code-review-checklist/SKILL.md"
+    ],
+    "sha256": "da45b0d8f7c7170c19dacfdace382b8ce52afaefdf829b017d41643249946ad2"
+  },
+  "database-design/SKILL.md": {
+    "sources": [
+      ".agent/skills/database-design/SKILL.md",
+      ".claude/skills/database-design/SKILL.md",
+      ".codex/skills/database-design/SKILL.md"
+    ],
+    "sha256": "30bc6dbddfaa393890b9072f31fafddc6a100ebe81aa9c4ffa1e2bfa4dadd388"
+  },
+  "database-design/advanced.md": {
+    "sources": [
+      ".agent/skills/database-design/advanced.md",
+      ".claude/skills/database-design/advanced.md",
+      ".codex/skills/database-design/advanced.md"
+    ],
+    "sha256": "204341034a21dd3168fc7f4af676251e98fb62e84a80b7d3b3667a7631335078"
+  },
+  "database-design/concurrency.md": {
+    "sources": [
+      ".agent/skills/database-design/concurrency.md",
+      ".claude/skills/database-design/concurrency.md",
+      ".codex/skills/database-design/concurrency.md"
+    ],
+    "sha256": "a9e70fd9b210f975dd59d7a308766bd8118a64a21f8d9c57e8a8c51f2afdc0e2"
+  },
+  "database-design/connection-management.md": {
+    "sources": [
+      ".agent/skills/database-design/connection-management.md",
+      ".claude/skills/database-design/connection-management.md",
+      ".codex/skills/database-design/connection-management.md"
+    ],
+    "sha256": "44ce8561c7619a9563aaf11c0d624cc4166f78950161c47b032ac1cc571f7381"
+  },
+  "database-design/data-access.md": {
+    "sources": [
+      ".agent/skills/database-design/data-access.md",
+      ".claude/skills/database-design/data-access.md",
+      ".codex/skills/database-design/data-access.md"
+    ],
+    "sha256": "545e090c9dbdf656ae40a54af9098be0a812b8b59889cb46548ac73468e3c11f"
+  },
+  "database-design/database-selection.md": {
+    "sources": [
+      ".agent/skills/database-design/database-selection.md",
+      ".claude/skills/database-design/database-selection.md",
+      ".codex/skills/database-design/database-selection.md"
+    ],
+    "sha256": "1d4bf57933b07bf923028e9fa345fd8d9d5e8f14b5dc22c9d0bad040adadd76f"
+  },
+  "database-design/indexing.md": {
+    "sources": [
+      ".agent/skills/database-design/indexing.md",
+      ".claude/skills/database-design/indexing.md",
+      ".codex/skills/database-design/indexing.md"
+    ],
+    "sha256": "66bebe34a397ca3c3402d2d21e53ba1d872ea0ec7a36aa40d9e5326028e11895"
+  },
+  "database-design/migrations.md": {
+    "sources": [
+      ".agent/skills/database-design/migrations.md",
+      ".claude/skills/database-design/migrations.md",
+      ".codex/skills/database-design/migrations.md"
+    ],
+    "sha256": "ecce9b31f5736011d10750d8dd21ccde374ceeff9be94615b02db43b8ad01d51"
+  },
+  "database-design/monitoring.md": {
+    "sources": [
+      ".agent/skills/database-design/monitoring.md",
+      ".claude/skills/database-design/monitoring.md",
+      ".codex/skills/database-design/monitoring.md"
+    ],
+    "sha256": "778fb84b37f00e0a5fed52f7cc361733ccc95647e6822403ad307426a98e464c"
+  },
+  "database-design/optimization.md": {
+    "sources": [
+      ".agent/skills/database-design/optimization.md",
+      ".claude/skills/database-design/optimization.md",
+      ".codex/skills/database-design/optimization.md"
+    ],
+    "sha256": "1696339c963b03e1f526bcf6cbf1e6740fbf5fda01ee7062c2a380c72b9abdb1"
+  },
+  "database-design/orm-selection.md": {
+    "sources": [
+      ".agent/skills/database-design/orm-selection.md",
+      ".claude/skills/database-design/orm-selection.md",
+      ".codex/skills/database-design/orm-selection.md"
+    ],
+    "sha256": "0b01576853adc1b1358faccb54d464f947de991dd954401baaaad3d7aa6e3743"
+  },
+  "database-design/schema-design.md": {
+    "sources": [
+      ".agent/skills/database-design/schema-design.md",
+      ".claude/skills/database-design/schema-design.md",
+      ".codex/skills/database-design/schema-design.md"
+    ],
+    "sha256": "42a6527a69e0a4b0dc5554d0e74fe9cef793641272cd66369cf9c962f0aa1cb8"
+  },
+  "database-design/security-rls.md": {
+    "sources": [
+      ".agent/skills/database-design/security-rls.md",
+      ".claude/skills/database-design/security-rls.md",
+      ".codex/skills/database-design/security-rls.md"
+    ],
+    "sha256": "23551357c1188076bb31aba183c43d17daebaa2408841e9952e768c3c46992ac"
+  },
+  "java-spring-backend/SKILL.md": {
+    "sources": [
+      ".codex/skills/java-spring-backend/SKILL.md"
+    ],
+    "sha256": "cae81dcea4a35ddbdca43677767b79ae258e55f6f9540610f24c96bc02ce0ab7"
+  },
+  "kotlin-supabase-backend/SKILL.md": {
+    "sources": [
+      ".codex/skills/kotlin-supabase-backend/SKILL.md"
+    ],
+    "sha256": "c16be493a0af58f180e22084f0c582c57b332d62bed1b741afd3840f598d47d7"
+  },
+  "testing-patterns/SKILL.md": {
+    "sources": [
+      ".agent/skills/testing-patterns/SKILL.md",
+      ".claude/skills/testing-patterns/SKILL.md",
+      ".codex/skills/testing-patterns/SKILL.md"
+    ],
+    "sha256": "f229085ad979d04c004b01865ad8fc4dcd732f4a917b56af59f600e0a3a26e8d"
+  },
+  "testing-patterns/scripts/test_runner.py": {
+    "sources": [
+      ".agent/skills/testing-patterns/scripts/test_runner.py",
+      ".claude/skills/testing-patterns/scripts/test_runner.py",
+      ".codex/skills/testing-patterns/scripts/test_runner.py"
+    ],
+    "sha256": "83265cf25404f15c4d6ed44728efc613b40e3c17341fb19dc2bde8a0934b9fcc"
+  },
+  "vulnerability-scanner/SKILL.md": {
+    "sources": [
+      ".agent/skills/vulnerability-scanner/SKILL.md",
+      ".claude/skills/vulnerability-scanner/SKILL.md",
+      ".codex/skills/vulnerability-scanner/SKILL.md"
+    ],
+    "sha256": "8dfe6febffb085d2b7bf7ba68aba5734a7c696b1235a5d60c97394a818705eba"
+  },
+  "vulnerability-scanner/checklists.md": {
+    "sources": [
+      ".agent/skills/vulnerability-scanner/checklists.md",
+      ".claude/skills/vulnerability-scanner/checklists.md",
+      ".codex/skills/vulnerability-scanner/checklists.md"
+    ],
+    "sha256": "8c4b72cc21b23e9fa64a68c086d82edcbc93277f3a1a20a70a40c197a4f6c5e8"
+  },
+  "vulnerability-scanner/scripts/security_scan.py": {
+    "sources": [
+      ".agent/skills/vulnerability-scanner/scripts/security_scan.py",
+      ".claude/skills/vulnerability-scanner/scripts/security_scan.py",
+      ".codex/skills/vulnerability-scanner/scripts/security_scan.py"
+    ],
+    "sha256": "8788d9c9819c249dd507da4d981268b621131a88d375a695b48d3fd74d5dc030"
+  }
+}
