@@ -62,7 +62,15 @@ Tóm tắt mục tiêu đã xử lý, file quan trọng đã sửa, quyết đ�
 
 ### Điều kiện bắt đầu
 
-Repo hiện có workflow mẫu trong `.agent/workflows/openspec-*.md`, nhưng chưa có thư mục `openspec/`. Trước change đầu tiên, cần khởi tạo OpenSpec theo phiên bản CLI mà nhóm chọn và tạo/cập nhật project context. Không coi workflow mẫu là bằng chứng OpenSpec đã được cài hoặc cấu hình.
+Repo đã có [cấu hình OpenSpec](openspec/config.yaml) và lịch sử change trong [openspec/changes](openspec/changes). Không khởi tạo lại khi nạp skill. Trên Windows, kiểm tra CLI bằng `openspec.cmd --version` và xem change bằng `openspec.cmd list --json`.
+
+Sáu skill gồm `openspec-explore`, `openspec-propose`, `openspec-apply`, `openspec-update`, `openspec-sync`, `openspec-archive`. Có thể yêu cầu bằng lời, ví dụ: "Dùng openspec-explore để khảo sát luồng đăng nhập". Skill `propose` cũng hỗ trợ hoàn thiện các artifact còn thiếu của change đã có; `update` chỉ sửa các artifact hiện hữu.
+
+Nguồn được duy trì trong [.agent/skills](.agent/skills) và [.agent/openspec-context.md](.agent/openspec-context.md). Chạy `python .agent/scripts/sync_openspec_skills.py` để đồng bộ sang `.agents/skills`, `.github/skills`, `.claude/skills`, `.codex/skills` và các workflow cũ; thêm `--check` để kiểm tra mà không ghi file.
+
+Trong VS Code, mở Command Palette → `Chat: Open Customizations` → Skills để kiểm tra danh sách. Bắt đầu phiên mới sau khi đồng bộ; nếu chưa hiện, chạy `Developer: Reload Window`. Tích hợp Codex của VS Code hỗ trợ `.github/skills`, còn Codex nhận `.agents/skills` trực tiếp ([tài liệu VS Code](https://code.visualstudio.com/docs/agent-customization/agent-skills)). Kiểm tra file thành công không thay thế việc xác nhận menu trong IDE.
+
+Với agent Gemini trong Android Studio, đọc [hướng dẫn cấu hình Gemini](.gemini/README.md). Rules được nạp qua `GEMINI.md` ở root; skills nằm trong `.android-studio/skills/` và có thể chọn bằng `@`. `.gemini/commands/opsx/` dành cho Gemini CLI, không tự đăng ký slash command trong Android Studio. Sau khi cập nhật skills, chạy `python .gemini/scripts/sync_skills.py` và `python .gemini/scripts/sync_skills.py --check`.
 
 ### A. Proposal — ghi yêu cầu, chưa sửa code
 
