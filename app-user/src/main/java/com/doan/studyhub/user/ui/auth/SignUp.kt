@@ -69,6 +69,9 @@ class SignUp : Fragment() {
                         binding.tvError.isVisible = false
                     }
 
+                    binding.tvSuccess.text = state.successMessage
+                    binding.tvSuccess.isVisible = state.successMessage != null
+
                     if (state.isAuthenticated && findNavController().currentDestination?.id == R.id.signUpFragment) {
                         viewModel.clearMessages()
                         findNavController().navigate(R.id.action_signUp_to_main)
