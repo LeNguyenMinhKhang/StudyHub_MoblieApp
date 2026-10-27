@@ -177,11 +177,8 @@ class ProfileFragment : Fragment() {
     }
 
     private fun showAvatar(id: String, url: String?) {
-        viewLifecycleOwner.lifecycleScope.launch {
-            val selection = avatars.selection(id)
-            if (_binding != null && viewModel.uiState.value.profile?.id == id) {
-                AvatarImageLoader.show(this@ProfileFragment, binding.imgProfileAvatar, selection, url)
-            }
+        if (_binding != null && viewModel.uiState.value.profile?.id == id) {
+            AvatarImageLoader.showCommitted(this@ProfileFragment, binding.imgProfileAvatar, url)
         }
     }
 
