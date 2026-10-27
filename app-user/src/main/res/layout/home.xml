@@ -41,6 +41,17 @@
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent" />
 
+                <View
+                    android:id="@+id/viewHamburgerBadge"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/bg_unread_dot"
+                    android:visibility="gone"
+                    app:layout_constraintEnd_toEndOf="@id/btnHamburger"
+                    app:layout_constraintTop_toTopOf="@id/btnHamburger" />
+
                 <!-- Logo -->
                 <ImageView
                     android:id="@+id/imgHeaderLogo"
@@ -104,8 +115,7 @@
                 android:layout_height="52dp"
                 android:layout_marginBottom="10dp"
                 android:contentDescription="Avatar người dùng"
-                android:src="@drawable/ic_person"
-                app:tint="@android:color/white" />
+                android:src="@drawable/ic_person" />
 
             <TextView
                 android:id="@+id/tvDrawerName"
@@ -326,6 +336,19 @@
                         android:text="Thông báo"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/tvNavNotificationBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_streak_pill"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="2dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <!-- 8. Cài đặt -->

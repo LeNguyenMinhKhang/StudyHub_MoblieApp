@@ -19,7 +19,7 @@
     <color name="on_accent">#3D2B00</color>
 
     <!-- Backgrounds & Surfaces -->
-    <color name="background_light">#FAF7F1</color>
+    <color name="background_light">#F8FAFC</color>
     <color name="background_dark">#0F2D27</color>
     <color name="surface_light">#FFFFFF</color>
     <color name="surface_variant">#F1F6F4</color>
