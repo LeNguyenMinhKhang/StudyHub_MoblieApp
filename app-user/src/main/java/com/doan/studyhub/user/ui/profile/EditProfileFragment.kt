@@ -44,17 +44,21 @@ class EditProfileFragment : Fragment() {
         binding.btnChangeAvatar.setOnClickListener {
             pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
-        binding.btnRemoveAvatar.setOnClickListener { viewModel.hideImage() }
+        binding.btnRemoveAvatar.setOnClickListener { viewModel.removeAvatar() }
         binding.btnSaveProfile.setOnClickListener { viewModel.save() }
         binding.btnCancelEdit.setOnClickListener { (parentFragment as? Home)?.closeDetail() }
+
+        binding.btnRetryAvatar.setOnClickListener { viewModel.retryAvatar() }
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect(::render)
             }
         }
         viewModel.load(
-            state?.getString("draft_username"), state?.getString("draft_name"), state?.getString("draft_bio"),
-            state?.getString("draft_avatar_action"), state?.getString("draft_avatar_path")
+            state?.getString("draft_username"), state?.getString("draft_name"),
+            state?.getString("draft_bio"), state?.getString("draft_avatar_action"),
+            state?.getString("draft_avatar_path")
         )
     }
 
@@ -102,24 +106,34 @@ class EditProfileFragment : Fragment() {
         binding.etDisplayName.isEnabled = !state.isSaving
         binding.etBio.isEnabled = !state.isSaving
         binding.btnChangeAvatar.isEnabled = state.original != null && !state.isSaving
-        binding.btnRemoveAvatar.isEnabled = state.original != null && !state.isSaving
-        AvatarImageLoader.show(this, binding.imgEditAvatar, AvatarSelection(AvatarMode.HIDDEN), null)
-        if (state.avatarAction == PendingAvatar.REPLACE && state.avatarDraft?.isFile == true) {
-            AvatarImageLoader.show(this, binding.imgEditAvatar, AvatarSelection(AvatarMode.LOCAL, state.avatarDraft), null)
-        } else if (state.avatarAction == PendingAvatar.KEEP) {
-            state.original?.let { profile ->
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val selection = viewModel.avatars.selection(profile.id)
-                    if (_binding != null && viewModel.uiState.value.avatarAction == PendingAvatar.KEEP) {
-                        AvatarImageLoader.show(this@EditProfileFragment, binding.imgEditAvatar, selection, profile.avatarUrl)
-                    }
-                }
-            }
-        }
+        binding.btnRemoveAvatar.isEnabled = state.original != null && !state.isSaving &&
+            state.original.avatarUrl != null
+        binding.btnRetryAvatar.isVisible = state.canRetryAvatar
+        binding.btnRetryAvatar.isEnabled = !state.isSaving
+
+        renderAvatarPreview(state)
+
         state.updatedProfile?.let { (parentFragment as? Home)?.onProfileUpdated(it) }
         if (state.completed && !completedHandled) {
             completedHandled = true
             (parentFragment as? Home)?.popDetail()
+        }
+    }
+
+    private fun renderAvatarPreview(state: EditProfileUiState) {
+        when {
+            state.avatarAction == PendingAvatar.REPLACE && state.avatarDraft?.isFile == true -> {
+                AvatarImageLoader.showEditor(
+                    this, binding.imgEditAvatar,
+                    AvatarSelection(AvatarMode.LOCAL, state.avatarDraft), null
+                )
+            }
+            state.avatarAction == PendingAvatar.REMOVE -> {
+                AvatarImageLoader.showCommitted(this, binding.imgEditAvatar, null)
+            }
+            else -> {
+                AvatarImageLoader.showCommitted(this, binding.imgEditAvatar, state.original?.avatarUrl)
+            }
         }
     }
 
