@@ -7,13 +7,17 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.GravityCompat
+import androidx.core.view.isVisible
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import com.doan.studyhub.common.ApiResponse
 import com.doan.studyhub.core.data.model.Profile
+import com.doan.studyhub.core.data.repository.NotificationRepository
 import com.doan.studyhub.core.data.repository.AvatarRepository
 import com.doan.studyhub.core.data.local.AvatarMode
 import com.doan.studyhub.core.data.local.AvatarSelection
@@ -39,6 +43,7 @@ class Home : Fragment() {
     private val auth: AuthViewModel by activityViewModels()
     private lateinit var avatars: AvatarRepository
     private var avatarRequest = 0
+    private val notifications = NotificationRepository()
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, state: Bundle?): View {
         _binding = HomeBinding.inflate(inflater, container, false)
@@ -63,6 +68,26 @@ class Home : Fragment() {
                 }
             }
         })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshUnreadNotifications()
+    }
+
+    fun showUnreadNotifications(count: Int) {
+        val binding = _binding ?: return
+        binding.viewHamburgerBadge.isVisible = count > 0
+        binding.tvNavNotificationBadge.isVisible = count > 0
+        binding.tvNavNotificationBadge.text = if (count > 99) "99+" else count.toString()
+        binding.tvNavNotificationBadge.contentDescription = getString(R.string.notification_unread_count, count)
+    }
+
+    private fun refreshUnreadNotifications() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = notifications.list(limit = 1)
+            if (result is ApiResponse.Success) showUnreadNotifications(result.data.unreadCount)
+        }
     }
 
     fun openDetail(fragment: Fragment) {
@@ -95,6 +120,9 @@ class Home : Fragment() {
 
     private fun setupListeners() {
         binding.btnHamburger.setOnClickListener { binding.drawerLayout.openDrawer(GravityCompat.START) }
+        binding.drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+            override fun onDrawerOpened(drawerView: View) = refreshUnreadNotifications()
+        })
         binding.layoutDrawerHeader.setOnClickListener { requestRoot(ProfileFragment()) }
         binding.btnNavFeed.setOnClickListener { requestRoot(Feed()) }
         binding.btnNavSubject.setOnClickListener { requestRoot(Subject()) }

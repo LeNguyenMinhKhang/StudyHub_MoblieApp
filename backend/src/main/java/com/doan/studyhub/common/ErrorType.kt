@@ -25,5 +25,7 @@ enum class ErrorType(
     INVALID_IMAGE("INVALID_IMAGE", "Ảnh không hợp lệ hoặc quá lớn.", "Image validation failed", LogLevel.INFO, false),
     STORAGE_FULL("STORAGE_FULL", "Thiết bị không đủ dung lượng để lưu ảnh.", "Local storage full", LogLevel.WARN, true),
     AVATAR_SAVE_FAILED("AVATAR_SAVE_FAILED", "Không thể lưu ảnh đại diện. Vui lòng thử lại.", "Avatar commit failed", LogLevel.ERROR, true),
+    FRIENDSHIP_UNAVAILABLE("FRIENDSHIP_UNAVAILABLE", "Không thể thực hiện với người dùng này.", "Friendship peer unavailable", LogLevel.INFO, false),
+    FRIENDSHIP_STALE("FRIENDSHIP_STALE", "Quan hệ đã thay đổi. Vui lòng tải lại.", "Friendship state changed", LogLevel.INFO, false),
     UNKNOWN_ERROR("UNKNOWN_ERROR", "Đã xảy ra lỗi. Vui lòng thử lại sau.", "Unclassified operation failure", LogLevel.ERROR, true)
 }

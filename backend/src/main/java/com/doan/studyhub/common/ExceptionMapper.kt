@@ -29,6 +29,13 @@ class ExceptionMapper {
                 else -> ErrorType.UNKNOWN_ERROR
             }
             is PostgrestRestException -> when (error.code) {
+                "F0001" -> ErrorType.VALIDATION_FAILED
+                "F0002" -> ErrorType.FRIENDSHIP_UNAVAILABLE
+                "F0003" -> ErrorType.PERMISSION_DENIED
+                "F0004" -> ErrorType.FRIENDSHIP_STALE
+                "F0005" -> ErrorType.UNAUTHENTICATED
+                "F0006" -> ErrorType.ACCOUNT_BANNED
+                "22P02", "22007", "22008" -> if (operation in setOf(Operation.FRIENDSHIP_READ, Operation.FRIENDSHIP_LIST, Operation.FRIENDSHIP_MUTATE, Operation.NOTIFICATION_LIST, Operation.NOTIFICATION_MARK_READ)) ErrorType.VALIDATION_FAILED else ErrorType.UNKNOWN_ERROR
                 "23505" -> if (operation == Operation.PROFILE_UPDATE || operation == Operation.PROFILE_LOOKUP || operation == Operation.AUTH_SIGN_UP) ErrorType.USERNAME_TAKEN else ErrorType.UNKNOWN_ERROR
                 "42501" -> ErrorType.PERMISSION_DENIED
                 "23502", "23514" -> ErrorType.VALIDATION_FAILED

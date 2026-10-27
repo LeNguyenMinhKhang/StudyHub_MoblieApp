@@ -6,8 +6,10 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import androidx.appcompat.app.AlertDialog
+import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
 import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.setFragmentResult
 import androidx.lifecycle.lifecycleScope
 import com.doan.studyhub.common.ApiResponse
 import com.doan.studyhub.core.data.repository.ProfileRepository
@@ -53,7 +55,7 @@ class ProfileLookupDialogFragment : DialogFragment() {
                             val profile = response.data
                             if (profile == null) input.error = getString(R.string.profile_unavailable)
                             else {
-                                (parentFragment as? ProfileFragment)?.openPublicProfile(profile.id)
+                                setFragmentResult(RESULT_KEY, bundleOf(RESULT_PROFILE_ID to profile.id))
                                 dismiss()
                             }
                         }
@@ -65,5 +67,10 @@ class ProfileLookupDialogFragment : DialogFragment() {
             }
         }
         return dialog
+    }
+
+    companion object {
+        const val RESULT_KEY = "profile_lookup"
+        const val RESULT_PROFILE_ID = "profile_id"
     }
 }

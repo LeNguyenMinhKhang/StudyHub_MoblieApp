@@ -85,6 +85,49 @@
                 android:layout_marginTop="8dp"
                 android:text="@string/profile_find" />
 
+            <LinearLayout
+                android:id="@+id/friendshipSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tvFriendshipStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:accessibilityLiveRegion="polite"
+                    android:textColor="@color/text_secondary" />
+
+                <ProgressBar
+                    android:id="@+id/progressFriendship"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_gravity="center_horizontal"
+                    android:contentDescription="@string/friendship_loading"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/btnFriendshipPrimary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/btnFriendshipSecondary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/btnFriendshipRetry"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/profile_retry"
+                    android:visibility="gone" />
+            </LinearLayout>
+
             <!-- User Posts Section -->
             <TextView
                 android:id="@+id/tvProfilePostsHeader"
