@@ -32,6 +32,7 @@ class ExceptionMapper {
                 "23505" -> if (operation == Operation.PROFILE_UPDATE || operation == Operation.PROFILE_LOOKUP || operation == Operation.AUTH_SIGN_UP) ErrorType.USERNAME_TAKEN else ErrorType.UNKNOWN_ERROR
                 "42501" -> ErrorType.PERMISSION_DENIED
                 "23502", "23514" -> ErrorType.VALIDATION_FAILED
+                "40001" -> if (operation == Operation.AVATAR_PUBLISH) ErrorType.AVATAR_CONFLICT else ErrorType.UNKNOWN_ERROR
                 else -> ErrorType.UNKNOWN_ERROR
             }
             is UnknownHostException, is ConnectException -> ErrorType.NETWORK_UNAVAILABLE
@@ -40,6 +41,7 @@ class ExceptionMapper {
             is io.ktor.client.network.sockets.SocketTimeoutException -> ErrorType.REQUEST_TIMEOUT
             is IOException -> when {
                 (error.cause as? ErrnoException)?.errno == OsConstants.ENOSPC -> ErrorType.STORAGE_FULL
+                operation == Operation.AVATAR_UPLOAD -> ErrorType.AVATAR_UPLOAD_FAILED
                 operation in setOf(Operation.AVATAR_STAGE, Operation.AVATAR_COMMIT, Operation.AVATAR_REMOVE) -> ErrorType.AVATAR_SAVE_FAILED
                 else -> ErrorType.UNKNOWN_ERROR
             }

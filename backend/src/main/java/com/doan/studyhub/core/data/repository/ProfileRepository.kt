@@ -15,14 +15,15 @@ import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class ProfileRepository(
+open class ProfileRepository(
     private val remote: ProfileRemoteDataSource = ProfileRemoteDataSource(),
     private val api: SafeApiCall = SafeApiCall(),
-    private val validator: ProfileValidator = ProfileValidator()
+    private val validator: ProfileValidator = ProfileValidator(),
+    private val currentUserIdProvider: () -> String? = { SupabaseClient.client.auth.currentUserOrNull()?.id }
 ) {
-    fun currentUserId(): String? = SupabaseClient.client.auth.currentUserOrNull()?.id
+    open fun currentUserId(): String? = currentUserIdProvider()
 
-    suspend fun getMine(): ApiResponse<Profile> = withContext(Dispatchers.IO) {
+    open suspend fun getMine(): ApiResponse<Profile> = withContext(Dispatchers.IO) {
         api.execute(Operation.PROFILE_READ) {
             requireSession()
             remote.getMine() ?: throw DomainException(ErrorType.PROFILE_NOT_FOUND)
@@ -45,7 +46,7 @@ class ProfileRepository(
         }
     }
 
-    suspend fun updateMine(request: UpdateProfileRequest, originalUsername: String? = null): ApiResponse<Profile> =
+    open suspend fun updateMine(request: UpdateProfileRequest, originalUsername: String? = null): ApiResponse<Profile> =
         withContext(Dispatchers.IO) {
             val errors = validator.validate(request.username, request.displayName, request.bio, originalUsername)
             if (errors.isNotEmpty()) return@withContext api.failure(Operation.PROFILE_UPDATE, ErrorType.VALIDATION_FAILED, errors)

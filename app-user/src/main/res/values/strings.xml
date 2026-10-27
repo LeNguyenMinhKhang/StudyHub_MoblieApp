@@ -13,11 +13,13 @@
     <string name="profile_cancel">Hủy</string>
     <string name="profile_save">Lưu</string>
     <string name="profile_change_avatar">Đổi ảnh đại diện</string>
-    <string name="profile_remove_avatar">Ẩn ảnh trên thiết bị</string>
+    <string name="profile_remove_avatar">Xóa ảnh đại diện</string>
     <string name="profile_discard_title">Bỏ thay đổi?</string>
     <string name="profile_discard_message">Những thay đổi chưa lưu sẽ bị mất.</string>
     <string name="profile_discard">Bỏ thay đổi</string>
     <string name="profile_partial_save">Thông tin đã lưu nhưng chưa lưu được ảnh. Hãy thử lại.</string>
+    <string name="profile_retry_avatar">Thử lại ảnh đại diện</string>
+    <string name="profile_avatar_unknown_outcome">Không xác định được kết quả lưu ảnh. Vui lòng kiểm tra lại sau.</string>
     <string name="profile_display_name">Tên hiển thị</string>
     <string name="profile_username">Tên người dùng</string>
     <string name="profile_bio">Giới thiệu</string>
