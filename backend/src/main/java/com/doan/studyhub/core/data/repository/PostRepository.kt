@@ -11,9 +11,11 @@ class PostRepository(
     suspend fun getPosts(
         subjectId: String? = null,
         authorId: String? = null,
-        type: String? = null
+        type: String? = null,
+        limit: Long? = null,
+        offset: Long? = null
     ): List<PostDetail> {
-        return remoteDataSource.getPosts(subjectId, authorId, type)
+        return remoteDataSource.getPosts(subjectId, authorId, type, limit, offset)
     }
 
     suspend fun getPostDetail(postId: String): PostDetail? {

@@ -7,95 +7,199 @@
     android:layout_height="match_parent"
     android:fitsSystemWindows="true">
 
-    <!-- MAIN BLANK SCREEN CONTENT -->
+    <!-- MAIN SCREEN CONTENT -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@color/background_light"
         android:orientation="vertical">
 
-        <!-- Minimal Top Header Bar -->
+        <!-- Modern Top Header Bar with Quick Navigation Icons -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:cardBackgroundColor="#1E4940"
             app:cardCornerRadius="0dp"
-            app:cardElevation="2dp"
+            app:cardElevation="3dp"
             app:strokeWidth="0dp">
 
             <androidx.constraintlayout.widget.ConstraintLayout
                 android:layout_width="match_parent"
                 android:layout_height="64dp"
-                android:paddingHorizontal="16dp">
+                android:paddingHorizontal="12dp">
 
                 <!-- Hamburger Bar Button -->
-                <ImageButton
-                    android:id="@+id/btnHamburger"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="Menu điều hướng"
-                    android:src="@drawable/ic_menu"
-                    app:tint="@android:color/white"
+                <FrameLayout
+                    android:id="@+id/btnHamburgerContainer"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/bg_header_action_circle"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent" />
+                    app:layout_constraintTop_toTopOf="parent">
 
-                <View
-                    android:id="@+id/viewHamburgerBadge"
-                    android:layout_width="10dp"
-                    android:layout_height="10dp"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_unread_dot"
-                    android:visibility="gone"
-                    app:layout_constraintEnd_toEndOf="@id/btnHamburger"
-                    app:layout_constraintTop_toTopOf="@id/btnHamburger" />
+                    <ImageButton
+                        android:id="@+id/btnHamburger"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="Menu điều hướng"
+                        android:src="@drawable/ic_menu"
+                        app:tint="@android:color/white" />
 
-                <!-- Logo -->
+                    <View
+                        android:id="@+id/viewHamburgerBadge"
+                        android:layout_width="9dp"
+                        android:layout_height="9dp"
+                        android:layout_gravity="top|end"
+                        android:layout_marginTop="6dp"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/bg_unread_dot"
+                        android:visibility="gone" />
+                </FrameLayout>
+
+                <!-- StudyHub Logo -->
                 <ImageView
                     android:id="@+id/imgHeaderLogo"
-                    android:layout_width="140dp"
+                    android:layout_width="112dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
                     android:adjustViewBounds="true"
                     android:contentDescription="StudyHub Logo"
                     android:src="@drawable/logo2"
                     app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintStart_toEndOf="@id/btnHamburger"
+                    app:layout_constraintStart_toEndOf="@id/btnHamburgerContainer"
                     app:layout_constraintTop_toTopOf="parent" />
+
+                <!-- Quick Action Icons on Top Bar -->
+                <LinearLayout
+                    android:id="@+id/layoutHeaderActions"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="parent">
+
+                    <!-- 1. Môn học & Tài liệu -->
+                    <FrameLayout
+                        android:id="@+id/btnHeaderSubject"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:background="@drawable/bg_header_action_circle"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackgroundBorderless">
+
+                        <ImageView
+                            android:layout_width="19dp"
+                            android:layout_height="19dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Môn học"
+                            android:src="@drawable/ic_book"
+                            app:tint="@android:color/white" />
+                    </FrameLayout>
+
+                    <!-- 2. Bạn bè -->
+                    <FrameLayout
+                        android:id="@+id/btnHeaderFriend"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_header_action_circle"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackgroundBorderless">
+
+                        <ImageView
+                            android:layout_width="19dp"
+                            android:layout_height="19dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Bạn bè"
+                            android:src="@drawable/ic_group"
+                            app:tint="@android:color/white" />
+                    </FrameLayout>
+
+                    <!-- 3. Tin nhắn -->
+                    <FrameLayout
+                        android:id="@+id/btnHeaderChat"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_header_action_circle"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackgroundBorderless">
+
+                        <ImageView
+                            android:layout_width="19dp"
+                            android:layout_height="19dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Tin nhắn"
+                            android:src="@drawable/ic_chat"
+                            app:tint="@android:color/white" />
+                    </FrameLayout>
+
+                    <!-- 4. Thông báo (với Badge đếm số) -->
+                    <FrameLayout
+                        android:id="@+id/btnHeaderNotification"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_header_action_circle"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackgroundBorderless">
+
+                        <ImageView
+                            android:layout_width="19dp"
+                            android:layout_height="19dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Thông báo"
+                            android:src="@drawable/ic_notifications"
+                            app:tint="@android:color/white" />
+
+                        <TextView
+                            android:id="@+id/tvHeaderNotificationBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="16dp"
+                            android:layout_gravity="top|end"
+                            android:layout_marginTop="2dp"
+                            android:layout_marginEnd="2dp"
+                            android:background="@drawable/bg_unread_dot"
+                            android:gravity="center"
+                            android:minWidth="16dp"
+                            android:paddingHorizontal="4dp"
+                            android:textColor="@android:color/white"
+                            android:textSize="9sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+                    </FrameLayout>
+
+                </LinearLayout>
 
             </androidx.constraintlayout.widget.ConstraintLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Blank Body Area (Ready for user customization) -->
+        <!-- Main Content Area -->
         <FrameLayout
             android:id="@+id/containerMain"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="@color/background_light">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="Trang chủ (Sẵn sàng bổ sung nội dung)"
-                android:textColor="@color/text_muted"
-                android:textSize="15sp" />
-
-        </FrameLayout>
+            android:background="@color/background_light" />
     </LinearLayout>
 
-    <!-- HAMBURGER NAVIGATION DRAWER -->
+    <!-- MODERN HAMBURGER NAVIGATION DRAWER -->
     <LinearLayout
         android:id="@+id/navigationDrawer"
-        android:layout_width="280dp"
+        android:layout_width="300dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        android:background="@color/surface_card"
+        android:background="@drawable/bg_drawer_panel"
         android:orientation="vertical">
 
-        <!-- Drawer Header (Click to view Profile) -->
+        <!-- Drawer Header (Profile Card) -->
         <LinearLayout
             android:id="@+id/layoutDrawerHeader"
             android:layout_width="match_parent"
@@ -106,34 +210,96 @@
             android:foreground="?attr/selectableItemBackground"
             android:orientation="vertical"
             android:paddingHorizontal="20dp"
-            android:paddingTop="32dp"
-            android:paddingBottom="20dp">
+            android:paddingTop="36dp"
+            android:paddingBottom="24dp">
 
-            <ImageView
-                android:id="@+id/imgDrawerAvatar"
-                android:layout_width="52dp"
-                android:layout_height="52dp"
-                android:layout_marginBottom="10dp"
-                android:contentDescription="Avatar người dùng"
-                android:src="@drawable/ic_person" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/tvDrawerName"
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    app:cardCornerRadius="28dp"
+                    app:cardElevation="2dp"
+                    app:strokeColor="#4DFFFFFF"
+                    app:strokeWidth="2dp">
+
+                    <ImageView
+                        android:id="@+id/imgDrawerAvatar"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="Avatar người dùng"
+                        android:scaleType="centerCrop"
+                        android:src="@drawable/ic_person" />
+                </com.google.android.material.card.MaterialCardView>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvDrawerName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="Người dùng"
+                        android:textColor="@android:color/white"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvDrawerEmail"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="@username"
+                        android:textColor="#A3CEC2"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron_right"
+                    app:tint="#80FFFFFF" />
+            </LinearLayout>
+
+            <!-- Status / Member Pill -->
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Người dùng"
-                android:textColor="@android:color/white"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_streak_pill"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp">
 
-            <TextView
-                android:id="@+id/tvDrawerEmail"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="user@studyhub.com"
-                android:textColor="#A3CEC2"
-                android:textSize="13sp" />
+                <ImageView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:src="@drawable/ic_spark"
+                    app:tint="@color/primary" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="Thành viên StudyHub"
+                    android:textColor="@color/primary"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
         </LinearLayout>
 
         <!-- Navigation Menu List -->
@@ -141,39 +307,70 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:paddingVertical="8dp">
+            android:paddingVertical="10dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
+                <!-- SECTION 1: HỌC TẬP & NỘI DUNG -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="20dp"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="6dp"
+                    android:letterSpacing="0.05"
+                    android:text="HỌC TẬP &amp; TÀI LIỆU"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
                 <!-- 1. Bảng tin & Khám phá -->
                 <LinearLayout
                     android:id="@+id/btnNavFeed"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
-                    android:background="?attr/selectableItemBackground"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginVertical="2dp"
+                    android:background="@drawable/bg_drawer_item_selected"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
-                    android:paddingHorizontal="20dp">
+                    android:paddingHorizontal="12dp">
 
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:contentDescription="Bảng tin"
-                        android:src="@drawable/ic_home"
-                        app:tint="@color/primary" />
+                    <FrameLayout
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/bg_drawer_icon_circle">
+
+                        <ImageView
+                            android:id="@+id/imgNavFeedIcon"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Bảng tin"
+                            android:src="@drawable/ic_home"
+                            app:tint="@color/primary" />
+                    </FrameLayout>
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvNavFeedText"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
                         android:text="Bảng tin &amp; Khám phá"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp"
                         android:textStyle="bold" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/text_muted" />
                 </LinearLayout>
 
                 <!-- 2. Môn học & Tài liệu -->
@@ -181,26 +378,44 @@
                     android:id="@+id/btnNavSubject"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginVertical="2dp"
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
-                    android:paddingHorizontal="20dp">
+                    android:paddingHorizontal="12dp">
 
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:contentDescription="Môn học"
-                        android:src="@drawable/ic_book"
-                        app:tint="@color/primary" />
+                    <FrameLayout
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/bg_drawer_icon_circle">
+
+                        <ImageView
+                            android:id="@+id/imgNavSubjectIcon"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Môn học"
+                            android:src="@drawable/ic_book"
+                            app:tint="@color/primary" />
+                    </FrameLayout>
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvNavSubjectText"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
                         android:text="Môn học &amp; Tài liệu"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/text_muted" />
                 </LinearLayout>
 
                 <!-- 3. Bài viết & Đã lưu -->
@@ -208,26 +423,44 @@
                     android:id="@+id/btnNavPost"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginVertical="2dp"
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
-                    android:paddingHorizontal="20dp">
+                    android:paddingHorizontal="12dp">
 
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:contentDescription="Bài viết"
-                        android:src="@drawable/ic_assignment"
-                        app:tint="@color/primary" />
+                    <FrameLayout
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/bg_drawer_icon_circle">
+
+                        <ImageView
+                            android:id="@+id/imgNavPostIcon"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Bài viết"
+                            android:src="@drawable/ic_assignment"
+                            app:tint="@color/primary" />
+                    </FrameLayout>
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvNavPostText"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
                         android:text="Bài viết &amp; Đã lưu"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/text_muted" />
                 </LinearLayout>
 
                 <!-- 4. Nhóm học tập -->
@@ -235,53 +468,110 @@
                     android:id="@+id/btnNavGroup"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginVertical="2dp"
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
-                    android:paddingHorizontal="20dp">
+                    android:paddingHorizontal="12dp">
 
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:contentDescription="Nhóm học tập"
-                        android:src="@drawable/ic_group"
-                        app:tint="@color/primary" />
+                    <FrameLayout
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/bg_drawer_icon_circle">
+
+                        <ImageView
+                            android:id="@+id/imgNavGroupIcon"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Nhóm học tập"
+                            android:src="@drawable/ic_spark"
+                            app:tint="@color/primary" />
+                    </FrameLayout>
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvNavGroupText"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
                         android:text="Nhóm học tập"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/text_muted" />
                 </LinearLayout>
+
+                <!-- DIVIDER -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginHorizontal="20dp"
+                    android:layout_marginVertical="8dp"
+                    android:background="@color/divider" />
+
+                <!-- SECTION 2: CỘNG ĐỒNG & KẾT NỐI -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="20dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="6dp"
+                    android:letterSpacing="0.05"
+                    android:text="CỘNG ĐỒNG &amp; KẾT NỐI"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
 
                 <!-- 5. Bạn bè & Tìm kiếm -->
                 <LinearLayout
                     android:id="@+id/btnNavFriend"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginVertical="2dp"
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
-                    android:paddingHorizontal="20dp">
+                    android:paddingHorizontal="12dp">
 
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:contentDescription="Bạn bè"
-                        android:src="@drawable/ic_person"
-                        app:tint="@color/primary" />
+                    <FrameLayout
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/bg_drawer_icon_circle">
+
+                        <ImageView
+                            android:id="@+id/imgNavFriendIcon"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Bạn bè"
+                            android:src="@drawable/ic_group"
+                            app:tint="@color/primary" />
+                    </FrameLayout>
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvNavFriendText"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
-                        android:text="Bạn bè &amp; Tìm kiếm"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
+                        android:text="Bạn bè &amp; Kết nối"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/text_muted" />
                 </LinearLayout>
 
                 <!-- 6. Tin nhắn & Thảo luận -->
@@ -289,26 +579,44 @@
                     android:id="@+id/btnNavChat"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginVertical="2dp"
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
-                    android:paddingHorizontal="20dp">
+                    android:paddingHorizontal="12dp">
 
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:contentDescription="Tin nhắn"
-                        android:src="@drawable/ic_email"
-                        app:tint="@color/primary" />
+                    <FrameLayout
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/bg_drawer_icon_circle">
+
+                        <ImageView
+                            android:id="@+id/imgNavChatIcon"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Tin nhắn"
+                            android:src="@drawable/ic_chat"
+                            app:tint="@color/primary" />
+                    </FrameLayout>
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvNavChatText"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
-                        android:text="Tin nhắn &amp; Thảo luận"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
+                        android:text="Tin nhắn thảo luận"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/text_muted" />
                 </LinearLayout>
 
                 <!-- 7. Thông báo -->
@@ -316,23 +624,35 @@
                     android:id="@+id/btnNavNotification"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginVertical="2dp"
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
-                    android:paddingHorizontal="20dp">
+                    android:paddingHorizontal="12dp">
 
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:contentDescription="Thông báo"
-                        android:src="@drawable/ic_notifications"
-                        app:tint="@color/primary" />
+                    <FrameLayout
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/bg_drawer_icon_circle">
+
+                        <ImageView
+                            android:id="@+id/imgNavNotificationIcon"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Thông báo"
+                            android:src="@drawable/ic_notifications"
+                            app:tint="@color/primary" />
+                    </FrameLayout>
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvNavNotificationText"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
                         android:text="Thông báo"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp" />
@@ -341,68 +661,132 @@
                         android:id="@+id/tvNavNotificationBadge"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:background="@drawable/bg_streak_pill"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/bg_unread_dot"
                         android:paddingHorizontal="8dp"
                         android:paddingVertical="2dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="12sp"
+                        android:textColor="@android:color/white"
+                        android:textSize="11sp"
                         android:textStyle="bold"
                         android:visibility="gone" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/text_muted" />
                 </LinearLayout>
+
+                <!-- DIVIDER -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginHorizontal="20dp"
+                    android:layout_marginVertical="8dp"
+                    android:background="@color/divider" />
+
+                <!-- SECTION 3: HỆ THỐNG -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="20dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="6dp"
+                    android:letterSpacing="0.05"
+                    android:text="HỆ THỐNG"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
 
                 <!-- 8. Cài đặt -->
                 <LinearLayout
                     android:id="@+id/btnNavSettings"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginVertical="2dp"
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
-                    android:paddingHorizontal="20dp">
+                    android:paddingHorizontal="12dp">
 
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:contentDescription="Cài đặt"
-                        android:src="@drawable/ic_settings"
-                        app:tint="@color/primary" />
+                    <FrameLayout
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/bg_drawer_icon_circle">
+
+                        <ImageView
+                            android:id="@+id/imgNavSettingsIcon"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Cài đặt"
+                            android:src="@drawable/ic_settings"
+                            app:tint="@color/primary" />
+                    </FrameLayout>
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvNavSettingsText"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
-                        android:text="Cài đặt"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
+                        android:text="Cài đặt tài khoản"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/text_muted" />
                 </LinearLayout>
 
             </LinearLayout>
         </ScrollView>
 
-        <!-- Drawer Sign Out -->
+        <!-- Drawer Sign Out Card -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="16dp">
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="14dp">
 
-            <LinearLayout
+            <com.google.android.material.card.MaterialCardView
                 android:id="@+id/btnDrawerSignOut"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:background="@drawable/bg_drawer_logout"
-                android:gravity="center"
-                android:paddingHorizontal="16dp">
+                android:layout_height="46dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardBackgroundColor="@color/error_container"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#33DC2626"
+                app:strokeWidth="1dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Đăng xuất"
-                    android:textColor="@color/error"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:src="@drawable/ic_logout"
+                        app:tint="@color/error" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="Đăng xuất"
+                        android:textColor="@color/error"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
     </LinearLayout>
 

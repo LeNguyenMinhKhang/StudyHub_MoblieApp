@@ -1,9 +1,11 @@
 package com.doan.studyhub.user.ui.home
 
+import android.graphics.Typeface
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.GravityCompat
@@ -77,10 +79,16 @@ class Home : Fragment() {
 
     fun showUnreadNotifications(count: Int) {
         val binding = _binding ?: return
-        binding.viewHamburgerBadge.isVisible = count > 0
-        binding.tvNavNotificationBadge.isVisible = count > 0
-        binding.tvNavNotificationBadge.text = if (count > 99) "99+" else count.toString()
+        val hasUnread = count > 0
+        binding.viewHamburgerBadge.isVisible = hasUnread
+        binding.tvHeaderNotificationBadge.isVisible = hasUnread
+        binding.tvNavNotificationBadge.isVisible = hasUnread
+
+        val countText = if (count > 99) "99+" else count.toString()
+        binding.tvHeaderNotificationBadge.text = countText
+        binding.tvNavNotificationBadge.text = countText
         binding.tvNavNotificationBadge.contentDescription = getString(R.string.notification_unread_count, count)
+        binding.tvHeaderNotificationBadge.contentDescription = getString(R.string.notification_unread_count, count)
     }
 
     private fun refreshUnreadNotifications() {
@@ -116,6 +124,43 @@ class Home : Fragment() {
         childFragmentManager.popBackStackImmediate(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
         childFragmentManager.beginTransaction().replace(R.id.containerMain, fragment).commit()
         binding.drawerLayout.closeDrawer(GravityCompat.START)
+
+        val tag = when (fragment) {
+            is Feed -> "feed"
+            is Subject -> "subject"
+            is Post -> "post"
+            is Group -> "group"
+            is Friend -> "friend"
+            is Chat -> "chat"
+            is Notification -> "notification"
+            is Settings -> "settings"
+            else -> ""
+        }
+        updateDrawerSelection(tag)
+    }
+
+    private fun updateDrawerSelection(tag: String) {
+        val binding = _binding ?: return
+        val items = listOf(
+            Triple(binding.btnNavFeed, binding.tvNavFeedText, "feed"),
+            Triple(binding.btnNavSubject, binding.tvNavSubjectText, "subject"),
+            Triple(binding.btnNavPost, binding.tvNavPostText, "post"),
+            Triple(binding.btnNavGroup, binding.tvNavGroupText, "group"),
+            Triple(binding.btnNavFriend, binding.tvNavFriendText, "friend"),
+            Triple(binding.btnNavChat, binding.tvNavChatText, "chat"),
+            Triple(binding.btnNavNotification, binding.tvNavNotificationText, "notification"),
+            Triple(binding.btnNavSettings, binding.tvNavSettingsText, "settings")
+        )
+        items.forEach { (layout, textView, itemTag) ->
+            val isSelected = itemTag == tag
+            if (isSelected) {
+                layout.setBackgroundResource(R.drawable.bg_drawer_item_selected)
+                textView.setTypeface(null, Typeface.BOLD)
+            } else {
+                layout.setBackgroundResource(android.R.color.transparent)
+                textView.setTypeface(null, Typeface.NORMAL)
+            }
+        }
     }
 
     private fun setupListeners() {
@@ -123,6 +168,14 @@ class Home : Fragment() {
         binding.drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
             override fun onDrawerOpened(drawerView: View) = refreshUnreadNotifications()
         })
+
+        // Top Bar Quick Access Action Icons
+        binding.btnHeaderSubject.setOnClickListener { requestRoot(Subject()) }
+        binding.btnHeaderFriend.setOnClickListener { requestRoot(Friend()) }
+        binding.btnHeaderChat.setOnClickListener { requestRoot(Chat()) }
+        binding.btnHeaderNotification.setOnClickListener { requestRoot(Notification()) }
+
+        // Hamburger Navigation Drawer Items
         binding.layoutDrawerHeader.setOnClickListener { requestRoot(ProfileFragment()) }
         binding.btnNavFeed.setOnClickListener { requestRoot(Feed()) }
         binding.btnNavSubject.setOnClickListener { requestRoot(Subject()) }

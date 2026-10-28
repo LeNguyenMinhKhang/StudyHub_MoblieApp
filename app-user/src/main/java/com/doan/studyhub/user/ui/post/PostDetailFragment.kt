@@ -106,18 +106,35 @@ class PostDetailFragment : Fragment() {
         binding.tvDetailAuthorName.text = authorName
         binding.tvDetailPostTime.text = post.createdAt?.take(10) ?: ""
 
-        when (post.type) {
-            "question" -> {
+        val (category, visibility) = com.doan.studyhub.core.data.model.PostTypeUtils.parse(post.type)
+
+        when (visibility) {
+            com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PRIVATE -> {
+                binding.imgDetailVisibility.setImageResource(R.drawable.ic_lock)
+                binding.imgDetailVisibility.contentDescription = "Chỉ mình tôi"
+            }
+            com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_FRIENDS -> {
+                binding.imgDetailVisibility.setImageResource(R.drawable.ic_group)
+                binding.imgDetailVisibility.contentDescription = "Bạn bè"
+            }
+            else -> {
+                binding.imgDetailVisibility.setImageResource(R.drawable.ic_public)
+                binding.imgDetailVisibility.contentDescription = "Công khai"
+            }
+        }
+
+        when (category) {
+            com.doan.studyhub.core.data.model.PostTypeUtils.CATEGORY_QUESTION -> {
                 binding.tvDetailTypeBadge.isVisible = true
                 binding.tvDetailTypeBadge.text = "Hỏi đáp"
                 binding.tvDetailTypeBadge.setBackgroundResource(R.drawable.bg_urgent_pill)
             }
-            "document" -> {
+            com.doan.studyhub.core.data.model.PostTypeUtils.CATEGORY_DOCUMENT -> {
                 binding.tvDetailTypeBadge.isVisible = true
                 binding.tvDetailTypeBadge.text = "Tài liệu"
                 binding.tvDetailTypeBadge.setBackgroundResource(R.drawable.bg_success_box)
             }
-            "knowledge" -> {
+            com.doan.studyhub.core.data.model.PostTypeUtils.CATEGORY_KNOWLEDGE -> {
                 binding.tvDetailTypeBadge.isVisible = true
                 binding.tvDetailTypeBadge.text = "Kiến thức"
                 binding.tvDetailTypeBadge.setBackgroundResource(R.drawable.bg_streak_pill)

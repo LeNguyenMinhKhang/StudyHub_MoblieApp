@@ -27,6 +27,7 @@ import com.doan.studyhub.core.data.model.Subject
 import com.doan.studyhub.core.data.repository.AuthRepository
 import com.doan.studyhub.core.data.repository.PostRepository
 import com.doan.studyhub.core.data.repository.SubjectRepository
+import com.doan.studyhub.user.R
 import com.doan.studyhub.user.databinding.FragmentPostCreateBinding
 import com.doan.studyhub.user.ui.auth.AuthViewModel
 import com.doan.studyhub.user.ui.profile.AvatarImageLoader
@@ -45,6 +46,7 @@ class PostCreateFragment : Fragment() {
     private var subjectsList = listOf<Subject>()
     private var selectedSubject: Subject? = null
     private var selectedPostType: String = "none"
+    private var selectedVisibility: String = com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PUBLIC
     private val selectedFiles = mutableListOf<SelectedFile>()
     private lateinit var fileAdapter: AttachedFileAdapter
 
@@ -99,6 +101,7 @@ class PostCreateFragment : Fragment() {
 
         loadAuthorInfo()
         setPostTypeSelection(null, null)
+        setVisibilitySelection(com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PUBLIC)
 
         binding.tvCreatePostTitle.text = if (editPostId != null) "Chỉnh sửa bài viết" else "Tạo bài viết"
         binding.btnSubmitPost.text = if (editPostId != null) "Lưu" else "Đăng"
@@ -129,6 +132,9 @@ class PostCreateFragment : Fragment() {
 
         binding.tvSelectTypeBadge.setOnClickListener { showPostTypeDialog() }
         binding.btnPickType.setOnClickListener { showPostTypeDialog() }
+
+        binding.layoutSelectVisibilityBadge.setOnClickListener { showVisibilityDialog() }
+        binding.btnPickVisibility.setOnClickListener { showVisibilityDialog() }
 
         binding.btnPickImage.setOnClickListener {
             selectFilesLauncher.launch("image/*")
@@ -216,16 +222,19 @@ class PostCreateFragment : Fragment() {
                         binding.edtPostTitle.setText(detail.post.title)
                         binding.edtPostContent.setText(detail.post.content)
 
-                        val typeName = when (detail.post.type) {
+                        val (category, visibility) = com.doan.studyhub.core.data.model.PostTypeUtils.parse(detail.post.type)
+                        val typeName = when (category) {
                             "question" -> "Hỏi đáp"
                             "document" -> "Tài liệu"
+                            "knowledge" -> "Kiến thức"
                             else -> null
                         }
                         if (typeName != null) {
-                            setPostTypeSelection(detail.post.type, typeName)
+                            setPostTypeSelection(category, typeName)
                         } else {
                             setPostTypeSelection(null, null)
                         }
+                        setVisibilitySelection(visibility)
 
                         val foundSubject = subjectsList.find { it.id == detail.post.subjectId }
                         if (foundSubject != null && !foundSubject.name.contains("Chung", ignoreCase = true)) {
@@ -260,7 +269,7 @@ class PostCreateFragment : Fragment() {
     }
 
     private fun showPostTypeDialog() {
-        val types = arrayOf("Chọn loại bài (Không)", "Hỏi đáp", "Tài liệu", "Kiến thức")
+        val types = arrayOf("Không phân loại", "Hỏi đáp", "Tài liệu", "Kiến thức")
         val keys = arrayOf("none", "question", "document", "knowledge")
 
         AlertDialog.Builder(requireContext())
@@ -275,6 +284,50 @@ class PostCreateFragment : Fragment() {
             }
             .setNegativeButton("Hủy", null)
             .show()
+    }
+
+    private fun showVisibilityDialog() {
+        val options = arrayOf(
+            "🌐 Công khai (Tất cả mọi người)",
+            "👥 Bạn bè (Chỉ bạn bè trên StudyHub)",
+            "🔒 Chỉ mình tôi (Riêng tư)"
+        )
+        val keys = arrayOf(
+            com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PUBLIC,
+            com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_FRIENDS,
+            com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PRIVATE
+        )
+        val currentIndex = keys.indexOf(selectedVisibility).coerceAtLeast(0)
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Ai có thể xem bài viết này?")
+            .setSingleChoiceItems(options, currentIndex) { dialog, which ->
+                setVisibilitySelection(keys[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton("Đóng", null)
+            .show()
+    }
+
+    private fun setVisibilitySelection(visibilityKey: String) {
+        selectedVisibility = visibilityKey
+        when (visibilityKey) {
+            com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PRIVATE -> {
+                binding.imgSelectedVisibilityIcon.setImageResource(R.drawable.ic_lock)
+                binding.btnPickVisibility.setImageResource(R.drawable.ic_lock)
+                binding.tvSelectVisibilityText.text = "Chỉ mình tôi"
+            }
+            com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_FRIENDS -> {
+                binding.imgSelectedVisibilityIcon.setImageResource(R.drawable.ic_group)
+                binding.btnPickVisibility.setImageResource(R.drawable.ic_group)
+                binding.tvSelectVisibilityText.text = "Bạn bè"
+            }
+            else -> {
+                binding.imgSelectedVisibilityIcon.setImageResource(R.drawable.ic_public)
+                binding.btnPickVisibility.setImageResource(R.drawable.ic_public)
+                binding.tvSelectVisibilityText.text = "Công khai"
+            }
+        }
     }
 
     private fun setPostTypeSelection(typeKey: String?, typeName: String?) {
@@ -367,8 +420,8 @@ class PostCreateFragment : Fragment() {
         // If user didn't choose a subject, do NOT auto-fill anything (keep null)
         val targetSubjectId = selectedSubject?.id
 
-        // If user didn't choose a type, keep null
-        val finalPostType = if (selectedPostType == "none" || selectedPostType.isBlank()) null else selectedPostType
+        // Format combined category and visibility into type column
+        val finalPostType = com.doan.studyhub.core.data.model.PostTypeUtils.format(selectedPostType, selectedVisibility)
 
         viewLifecycleOwner.lifecycleScope.launch {
             val userId = authRepository.getCurrentUserId()
