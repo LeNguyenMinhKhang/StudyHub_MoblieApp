@@ -220,7 +220,7 @@ create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null references public.profiles(id) on delete cascade,
   subject_id uuid references public.subjects(id) on delete set null,
-  type text check (type is null or type in ('knowledge','question','document','none')),
+  type text,
   title text not null,
   content text,
   created_at timestamptz not null default now(),
@@ -231,7 +231,7 @@ create table if not exists public.posts (
 alter table public.posts alter column subject_id drop not null;
 alter table public.posts alter column type drop not null;
 alter table public.posts drop constraint if exists posts_type_check;
-alter table public.posts add constraint posts_type_check check (type is null or type in ('knowledge','question','document','none'));
+
 
 create index if not exists posts_subject_id_idx on public.posts(subject_id);
 create index if not exists posts_author_id_idx on public.posts(author_id);

@@ -1,9 +1,12 @@
 package com.doan.studyhub.user.ui.post
 
+import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupMenu
+import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
@@ -30,10 +33,28 @@ class PostAdapter(
 
     private val posts = mutableListOf<PostDetail>()
 
+    // Frontend in-memory like state (chỉ lưu ID bài viết đã like)
+    private val likedPostIds = mutableSetOf<String>()
+
     fun submitList(newList: List<PostDetail>) {
         posts.clear()
         posts.addAll(newList)
         notifyDataSetChanged()
+    }
+
+    fun addPosts(newItems: List<PostDetail>) {
+        if (newItems.isEmpty()) return
+        val startPos = posts.size
+        posts.addAll(newItems)
+        notifyItemRangeInserted(startPos, newItems.size)
+    }
+
+    fun removePost(postId: String) {
+        val index = posts.indexOfFirst { it.post.id == postId }
+        if (index != -1) {
+            posts.removeAt(index)
+            notifyItemRemoved(index)
+        }
     }
 
     fun updateCurrentUserId(newUserId: String?, profile: Profile? = null) {
@@ -80,25 +101,42 @@ class PostAdapter(
             binding.tvPostAuthorName.text = authorName
             binding.tvPostTime.text = post.createdAt?.take(10) ?: ""
 
+            // Visibility Icon (Public 🌐 / Friends 👥 / Private 🔒)
+            val (category, visibility) = com.doan.studyhub.core.data.model.PostTypeUtils.parse(post.type)
+
+            when (visibility) {
+                com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PRIVATE -> {
+                    binding.imgPostVisibility.setImageResource(R.drawable.ic_lock)
+                    binding.imgPostVisibility.contentDescription = "Chỉ mình tôi"
+                }
+                com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_FRIENDS -> {
+                    binding.imgPostVisibility.setImageResource(R.drawable.ic_group)
+                    binding.imgPostVisibility.contentDescription = "Bạn bè"
+                }
+                else -> {
+                    binding.imgPostVisibility.setImageResource(R.drawable.ic_public)
+                    binding.imgPostVisibility.contentDescription = "Công khai"
+                }
+            }
+
             // Type badge
-            when (post.type) {
-                "question" -> {
+            when (category) {
+                com.doan.studyhub.core.data.model.PostTypeUtils.CATEGORY_QUESTION -> {
                     binding.tvPostTypeBadge.isVisible = true
                     binding.tvPostTypeBadge.text = "Hỏi đáp"
                     binding.tvPostTypeBadge.setBackgroundResource(R.drawable.bg_urgent_pill)
                 }
-                "document" -> {
+                com.doan.studyhub.core.data.model.PostTypeUtils.CATEGORY_DOCUMENT -> {
                     binding.tvPostTypeBadge.isVisible = true
                     binding.tvPostTypeBadge.text = "Tài liệu"
                     binding.tvPostTypeBadge.setBackgroundResource(R.drawable.bg_success_box)
                 }
-                "knowledge" -> {
+                com.doan.studyhub.core.data.model.PostTypeUtils.CATEGORY_KNOWLEDGE -> {
                     binding.tvPostTypeBadge.isVisible = true
                     binding.tvPostTypeBadge.text = "Kiến thức"
                     binding.tvPostTypeBadge.setBackgroundResource(R.drawable.bg_streak_pill)
                 }
                 else -> {
-                    // Do NOT display type tag if not explicitly chosen
                     binding.tvPostTypeBadge.isVisible = false
                 }
             }
@@ -179,22 +217,74 @@ class PostAdapter(
                 showPopupMenu(view, item)
             }
 
+            // --- FRONTEND LIKE & COMMENT INTERACTION (Kế bên nút, mặc định 1) ---
+            val postId = post.id.orEmpty()
+            val isLiked = likedPostIds.contains(postId)
+
+            // Mặc định số like và bình luận là 1 (khi like thì chuyển thành 2)
+            binding.tvPostLikeCount.text = if (isLiked) "2" else "1"
+            binding.tvPostCommentCount.text = "1"
+
+            updateLikeUi(isLiked)
+
+            binding.btnPostLike.setOnClickListener {
+                val currentlyLiked = likedPostIds.contains(postId)
+                val newLiked = !currentlyLiked
+                if (newLiked) {
+                    likedPostIds.add(postId)
+                    binding.imgPostLikeIcon.animate().scaleX(1.3f).scaleY(1.3f).setDuration(120).withEndAction {
+                        binding.imgPostLikeIcon.animate().scaleX(1.0f).scaleY(1.0f).setDuration(120).start()
+                    }.start()
+                } else {
+                    likedPostIds.remove(postId)
+                }
+                binding.tvPostLikeCount.text = if (newLiked) "2" else "1"
+                updateLikeUi(newLiked)
+            }
+
+            binding.btnPostComment.setOnClickListener {
+                onPostClick(item)
+            }
+
+            binding.btnPostShare.setOnClickListener {
+                Toast.makeText(fragment.requireContext(), "Đã sao chép liên kết bài viết", Toast.LENGTH_SHORT).show()
+            }
+
             itemView.setOnClickListener {
                 onPostClick(item)
             }
         }
 
+        private fun updateLikeUi(isLiked: Boolean) {
+            val context = fragment.requireContext()
+            if (isLiked) {
+                binding.imgPostLikeIcon.setImageResource(R.drawable.ic_thumb_up)
+                binding.imgPostLikeIcon.setColorFilter(ContextCompat.getColor(context, R.color.primary))
+                binding.tvPostLikeLabel.setTextColor(ContextCompat.getColor(context, R.color.primary))
+                binding.tvPostLikeCount.setTextColor(ContextCompat.getColor(context, R.color.primary))
+                binding.tvPostLikeLabel.setTypeface(null, Typeface.BOLD)
+                binding.tvPostLikeCount.setTypeface(null, Typeface.BOLD)
+            } else {
+                binding.imgPostLikeIcon.setImageResource(R.drawable.ic_thumb_up_outline)
+                binding.imgPostLikeIcon.setColorFilter(ContextCompat.getColor(context, R.color.text_secondary))
+                binding.tvPostLikeLabel.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+                binding.tvPostLikeCount.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+                binding.tvPostLikeLabel.setTypeface(null, Typeface.NORMAL)
+                binding.tvPostLikeCount.setTypeface(null, Typeface.NORMAL)
+            }
+        }
+
         private fun showPopupMenu(view: View, item: PostDetail) {
             val popup = PopupMenu(view.context, view)
-            popup.menu.add("Chỉnh sửa bài viết")
-            popup.menu.add("Xóa bài viết")
+            popup.menu.add(0, 1, 0, "Chỉnh sửa bài viết")
+            popup.menu.add(0, 2, 1, "Xóa bài viết")
             popup.setOnMenuItemClickListener { menuItem ->
-                when (menuItem.title) {
-                    "Chỉnh sửa bài viết" -> {
+                when (menuItem.itemId) {
+                    1 -> {
                         onEditClick(item)
                         true
                     }
-                    "Xóa bài viết" -> {
+                    2 -> {
                         onDeleteClick(item)
                         true
                     }

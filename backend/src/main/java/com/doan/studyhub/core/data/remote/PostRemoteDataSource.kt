@@ -53,23 +53,52 @@ class PostRemoteDataSource {
     suspend fun getPosts(
         subjectId: String? = null,
         authorId: String? = null,
-        type: String? = null
+        type: String? = null,
+        limit: Long? = null,
+        offset: Long? = null
     ): List<PostDetail> {
         val currentUserId = SupabaseClient.client.auth.currentUserOrNull()?.id
         if (!currentUserId.isNullOrBlank()) {
             ensureProfileExists(currentUserId)
         }
 
-        val posts = postgrest["posts"]
+        val rawPosts = postgrest["posts"]
             .select {
                 filter {
                     if (!subjectId.isNullOrBlank()) eq("subject_id", subjectId.trim())
                     if (!authorId.isNullOrBlank()) eq("author_id", authorId.trim())
-                    if (!type.isNullOrBlank() && type != "all") eq("type", type.trim())
+                    if (!type.isNullOrBlank() && type != "all") {
+                        ilike("type", "${type.trim()}%")
+                    }
                 }
                 order(column = "created_at", order = Order.DESCENDING)
+                if (limit != null && offset != null) {
+                    range(from = offset, to = offset + limit - 1)
+                } else if (limit != null) {
+                    limit(limit)
+                }
             }
             .decodeList<Post>()
+
+        val friendIds = try {
+            if (!currentUserId.isNullOrBlank()) {
+                FriendshipRemoteDataSource().list(com.doan.studyhub.core.data.model.FriendshipListKind.FRIENDS, null, 100)
+                    .items.map { it.peer.id }.toSet()
+            } else emptySet()
+        } catch (_: Exception) {
+            emptySet()
+        }
+
+        val posts = rawPosts.filter { post ->
+            val (category, visibility) = com.doan.studyhub.core.data.model.PostTypeUtils.parse(post.type)
+            val matchesCategory = type.isNullOrBlank() || type == "all" || category == type.trim().lowercase()
+            val matchesVisibility = when (visibility) {
+                com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PRIVATE -> post.authorId == currentUserId
+                com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_FRIENDS -> post.authorId == currentUserId || friendIds.contains(post.authorId)
+                else -> true
+            }
+            matchesCategory && matchesVisibility
+        }
 
         if (posts.isEmpty()) return emptyList()
 
@@ -170,6 +199,25 @@ class PostRemoteDataSource {
             }
             .decodeList<Post>()
             .firstOrNull() ?: return null
+
+        val currentUserId = SupabaseClient.client.auth.currentUserOrNull()?.id
+        val (_, visibility) = com.doan.studyhub.core.data.model.PostTypeUtils.parse(post.type)
+        if (visibility == com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PRIVATE && post.authorId != currentUserId) {
+            return null
+        }
+        if (visibility == com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_FRIENDS && post.authorId != currentUserId) {
+            val friendIds = try {
+                if (!currentUserId.isNullOrBlank()) {
+                    FriendshipRemoteDataSource().list(com.doan.studyhub.core.data.model.FriendshipListKind.FRIENDS, null, 100)
+                        .items.map { it.peer.id }.toSet()
+                } else emptySet()
+            } catch (_: Exception) {
+                emptySet()
+            }
+            if (!friendIds.contains(post.authorId)) {
+                return null
+            }
+        }
 
         val author = try {
             postgrest["profiles"]
