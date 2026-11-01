@@ -1,3 +1,4 @@
+
 package com.doan.studyhub.core.data.repository
 
 import com.doan.studyhub.core.data.model.Post
@@ -20,6 +21,19 @@ class PostRepository(
 
     suspend fun getPostDetail(postId: String): PostDetail? {
         return remoteDataSource.getPostDetail(postId)
+    }
+
+    // Lấy số lượt Like và trạng thái Like của người dùng
+    suspend fun getLikeSummary(
+        postIds: List<String>,
+        currentUserId: String?
+    ): Map<String, Pair<Int, Boolean>> {
+        return remoteDataSource.getLikeSummary(postIds, currentUserId)
+    }
+
+    // Like hoặc Unlike bài viết
+    suspend fun toggleLike(postId: String): Boolean {
+        return remoteDataSource.toggleLike(postId)
     }
 
     suspend fun createPost(

@@ -1,3 +1,4 @@
+
 package com.doan.studyhub.user.ui.feed
 
 import android.content.res.ColorStateList
@@ -6,7 +7,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
@@ -80,6 +80,7 @@ class Feed : Fragment() {
                     if (profile != null) {
                         currentUserId = profile.id
                         adapter.updateCurrentUserId(profile.id, profile)
+
                         AvatarImageLoader.show(
                             fragment = this@Feed,
                             view = binding.imgFeedUserAvatar,
@@ -93,7 +94,10 @@ class Feed : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             currentUserId = authRepository.getCurrentUserId()
-            adapter.updateCurrentUserId(currentUserId, authViewModel.uiState.value.profile)
+            adapter.updateCurrentUserId(
+                currentUserId,
+                authViewModel.uiState.value.profile
+            )
             loadFeed(isRefresh = false)
         }
 
@@ -104,43 +108,84 @@ class Feed : Fragment() {
 
     private fun setupAdapter() {
         val initialProfile = authViewModel.uiState.value.profile
+
         adapter = PostAdapter(
             fragment = this,
             currentUserId = initialProfile?.id,
             currentUserProfile = initialProfile,
+
             onPostClick = { detail ->
                 detail.post.id?.let { postId ->
                     parentFragmentManager.beginTransaction()
-                        .replace(R.id.containerMain, PostDetailFragment.newInstance(postId))
+                        .replace(
+                            R.id.containerMain,
+                            PostDetailFragment.newInstance(postId)
+                        )
                         .addToBackStack(null)
                         .commit()
                 }
             },
+
             onSubjectClick = { subjectId ->
                 parentFragmentManager.beginTransaction()
-                    .replace(R.id.containerMain, SubjectDetailFragment.newInstance(subjectId))
+                    .replace(
+                        R.id.containerMain,
+                        SubjectDetailFragment.newInstance(subjectId)
+                    )
                     .addToBackStack(null)
                     .commit()
             },
+
             onEditClick = { detail ->
                 detail.post.id?.let { postId ->
                     parentFragmentManager.beginTransaction()
-                        .replace(R.id.containerMain, PostCreateFragment.newInstance(postId))
+                        .replace(
+                            R.id.containerMain,
+                            PostCreateFragment.newInstance(postId)
+                        )
                         .addToBackStack(null)
                         .commit()
                 }
             },
+
             onDeleteClick = { detail ->
                 detail.post.id?.let { postId ->
                     deletePost(postId)
                 }
             },
+
             onAuthorClick = { authorId ->
-                (parentFragment as? Home)?.openDetail(ProfileFragment.forUser(authorId))
+                (parentFragment as? Home)?.openDetail(
+                    ProfileFragment.forUser(authorId)
+                )
+            },
+
+            // Like / Unlike với Supabase
+            onLikeClick = { postDetail, onResult ->
+                val postId = postDetail.post.id
+
+                if (postId.isNullOrBlank()) {
+                    onResult(
+                        Result.failure(
+                            IllegalStateException("Không tìm thấy ID bài viết.")
+                        )
+                    )
+                } else {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        try {
+                            val isLiked = postRepository.toggleLike(postId)
+                            onResult(Result.success(isLiked))
+                        } catch (e: Exception) {
+                            onResult(Result.failure(e))
+                        }
+                    }
+                }
             }
         )
 
-        binding.rvFeedPosts.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvFeedPosts.layoutManager =
+            LinearLayoutManager(requireContext())
+
         binding.rvFeedPosts.adapter = adapter
     }
 
@@ -150,29 +195,44 @@ class Feed : Fragment() {
             R.color.secondary,
             R.color.accent
         )
+
         binding.swipeRefreshFeed.setOnRefreshListener {
             loadFeed(isRefresh = true)
         }
     }
 
     private fun setupScrollListener() {
-        val layoutManager = binding.rvFeedPosts.layoutManager as LinearLayoutManager
-        binding.rvFeedPosts.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                super.onScrolled(recyclerView, dx, dy)
-                if (dy <= 0) return
+        val layoutManager =
+            binding.rvFeedPosts.layoutManager as LinearLayoutManager
 
-                val visibleItemCount = layoutManager.childCount
-                val totalItemCount = layoutManager.itemCount
-                val firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
+        binding.rvFeedPosts.addOnScrollListener(
+            object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(
+                    recyclerView: RecyclerView,
+                    dx: Int,
+                    dy: Int
+                ) {
+                    super.onScrolled(recyclerView, dx, dy)
 
-                if (!isLoading && hasMore) {
-                    if ((visibleItemCount + firstVisibleItemPosition) >= totalItemCount - 2 && firstVisibleItemPosition >= 0) {
-                        loadMorePosts()
+                    if (dy <= 0) return
+
+                    val visibleItemCount = layoutManager.childCount
+                    val totalItemCount = layoutManager.itemCount
+                    val firstVisibleItemPosition =
+                        layoutManager.findFirstVisibleItemPosition()
+
+                    if (!isLoading && hasMore) {
+                        if (
+                            visibleItemCount + firstVisibleItemPosition >=
+                            totalItemCount - 2 &&
+                            firstVisibleItemPosition >= 0
+                        ) {
+                            loadMorePosts()
+                        }
                     }
                 }
             }
-        })
+        )
     }
 
     private fun setupFilterButtons() {
@@ -185,6 +245,7 @@ class Feed : Fragment() {
                 loadFeed(isRefresh = false)
             }
         }
+
         binding.btnFilterKnowledge.setOnClickListener {
             if (currentFilterType != "knowledge") {
                 currentFilterType = "knowledge"
@@ -192,6 +253,7 @@ class Feed : Fragment() {
                 loadFeed(isRefresh = false)
             }
         }
+
         binding.btnFilterQuestion.setOnClickListener {
             if (currentFilterType != "question") {
                 currentFilterType = "question"
@@ -199,6 +261,7 @@ class Feed : Fragment() {
                 loadFeed(isRefresh = false)
             }
         }
+
         binding.btnFilterDocument.setOnClickListener {
             if (currentFilterType != "document") {
                 currentFilterType = "document"
@@ -209,10 +272,17 @@ class Feed : Fragment() {
     }
 
     private fun updateFilterButtonStyles() {
-        val activeBg = ContextCompat.getColor(requireContext(), R.color.primary_container)
-        val activeTextColor = ContextCompat.getColor(requireContext(), R.color.primary)
-        val inactiveTextColor = ContextCompat.getColor(requireContext(), R.color.text_secondary)
-        val strokeColor = ContextCompat.getColor(requireContext(), R.color.border_subtle)
+        val activeBg =
+            ContextCompat.getColor(requireContext(), R.color.primary_container)
+
+        val activeTextColor =
+            ContextCompat.getColor(requireContext(), R.color.primary)
+
+        val inactiveTextColor =
+            ContextCompat.getColor(requireContext(), R.color.text_secondary)
+
+        val strokeColor =
+            ContextCompat.getColor(requireContext(), R.color.border_subtle)
 
         val buttonConfigs = listOf(
             binding.btnFilterAll to null,
@@ -224,15 +294,24 @@ class Feed : Fragment() {
         buttonConfigs.forEach { (button, type) ->
             val isSelected = currentFilterType == type
             val matButton = button as? MaterialButton
+
             if (matButton != null) {
                 if (isSelected) {
-                    matButton.backgroundTintList = ColorStateList.valueOf(activeBg)
+                    matButton.backgroundTintList =
+                        ColorStateList.valueOf(activeBg)
+
                     matButton.setTextColor(activeTextColor)
-                    matButton.strokeColor = ColorStateList.valueOf(Color.TRANSPARENT)
+
+                    matButton.strokeColor =
+                        ColorStateList.valueOf(Color.TRANSPARENT)
                 } else {
-                    matButton.backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
+                    matButton.backgroundTintList =
+                        ColorStateList.valueOf(Color.TRANSPARENT)
+
                     matButton.setTextColor(inactiveTextColor)
-                    matButton.strokeColor = ColorStateList.valueOf(strokeColor)
+
+                    matButton.strokeColor =
+                        ColorStateList.valueOf(strokeColor)
                 }
             }
         }
@@ -242,6 +321,7 @@ class Feed : Fragment() {
         binding.btnFeedEmptyCreatePost.setOnClickListener {
             openCreatePost()
         }
+
         binding.btnFeedEmptyRefresh.setOnClickListener {
             loadFeed(isRefresh = true)
         }
@@ -249,12 +329,17 @@ class Feed : Fragment() {
 
     private fun loadFeed(isRefresh: Boolean = false) {
         if (isLoading) return
+
         isLoading = true
 
         if (isRefresh) {
             currentOffset = 0L
             hasMore = true
-            if (!binding.swipeRefreshFeed.isRefreshing && loadedPosts.isEmpty()) {
+
+            if (
+                !binding.swipeRefreshFeed.isRefreshing &&
+                loadedPosts.isEmpty()
+            ) {
                 binding.progressFeed.isVisible = true
             }
         } else {
@@ -273,16 +358,25 @@ class Feed : Fragment() {
                     limit = pageSize,
                     offset = 0L
                 )
+
                 loadedPosts.clear()
                 loadedPosts.addAll(posts)
+
                 currentOffset = posts.size.toLong()
                 hasMore = posts.size.toLong() == pageSize
 
                 adapter.submitList(loadedPosts.toList())
                 updateEmptyState()
+
             } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Không thể tải bảng tin: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Không thể tải bảng tin: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+
                 updateEmptyState()
+
             } finally {
                 isLoading = false
                 _binding?.progressFeed?.isVisible = false
@@ -293,6 +387,7 @@ class Feed : Fragment() {
 
     private fun loadMorePosts() {
         if (isLoading || !hasMore) return
+
         isLoading = true
         binding.layoutLoadMore.isVisible = true
 
@@ -303,16 +398,24 @@ class Feed : Fragment() {
                     limit = pageSize,
                     offset = currentOffset
                 )
+
                 if (newPosts.isNotEmpty()) {
                     loadedPosts.addAll(newPosts)
                     currentOffset += newPosts.size
                     adapter.addPosts(newPosts)
                 }
+
                 if (newPosts.size.toLong() < pageSize) {
                     hasMore = false
                 }
+
             } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Không thể tải thêm bài viết", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Không thể tải thêm bài viết",
+                    Toast.LENGTH_SHORT
+                ).show()
+
             } finally {
                 isLoading = false
                 _binding?.layoutLoadMore?.isVisible = false
@@ -322,6 +425,7 @@ class Feed : Fragment() {
 
     private fun updateEmptyState() {
         val isEmpty = loadedPosts.isEmpty()
+
         binding.layoutFeedEmpty.isVisible = isEmpty
         binding.rvFeedPosts.isVisible = !isEmpty
     }
@@ -330,19 +434,33 @@ class Feed : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 postRepository.deletePost(postId)
-                Toast.makeText(requireContext(), "Đã xóa bài viết", Toast.LENGTH_SHORT).show()
+
+                Toast.makeText(
+                    requireContext(),
+                    "Đã xóa bài viết",
+                    Toast.LENGTH_SHORT
+                ).show()
+
                 loadedPosts.removeAll { it.post.id == postId }
                 adapter.removePost(postId)
                 updateEmptyState()
+
             } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Không thể xóa bài viết: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Không thể xóa bài viết: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
 
     private fun openCreatePost() {
         parentFragmentManager.beginTransaction()
-            .replace(R.id.containerMain, PostCreateFragment.newInstance())
+            .replace(
+                R.id.containerMain,
+                PostCreateFragment.newInstance()
+            )
             .addToBackStack(null)
             .commit()
     }
