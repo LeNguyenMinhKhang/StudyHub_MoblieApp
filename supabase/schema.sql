@@ -1,4 +1,4 @@
--- =====================================================================
+﻿-- =====================================================================
 -- StudyHub – Schema Supabase/PostgreSQL (Đã cập nhật đầy đủ)
 -- Chạy toàn bộ file này trong Supabase Dashboard > SQL Editor
 -- Đã bao gồm:
@@ -560,7 +560,41 @@ create policy "reports_update_admin" on public.reports
   );
 
 -- =====================================================================
--- 14. conversations (phân hệ 8, 9)
+
+-- =====================================================================
+-- 14. Helper functions for Chat RLS (Tránh đệ quy)
+-- =====================================================================
+create or replace function public.is_conversation_member(p_conversation_id uuid, p_user_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = 'public', 'auth', 'pg_temp'
+stable
+as $$
+  select exists (
+    select 1 from public.conversation_members
+    where conversation_id = p_conversation_id and user_id = p_user_id
+  );
+$$;
+
+create or replace function public.is_conversation_admin(p_conversation_id uuid, p_user_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = 'public', 'auth', 'pg_temp'
+stable
+as $$
+  select exists (
+    select 1 from public.conversation_members
+    where conversation_id = p_conversation_id and user_id = p_user_id and role = 'admin'
+  );
+$$;
+
+grant execute on function public.is_conversation_member(uuid, uuid) to authenticated, anon;
+grant execute on function public.is_conversation_admin(uuid, uuid) to authenticated, anon;
+
+-- =====================================================================
+-- 15. conversations (phân hệ 8, 9)
 -- =====================================================================
 create table if not exists public.conversations (
   id uuid primary key default gen_random_uuid(),
@@ -572,7 +606,9 @@ create table if not exists public.conversations (
   created_at timestamptz not null default now()
 );
 
--- Create the referenced table before conversations policies query membership.
+-- =====================================================================
+-- 16. conversation_members (phân hệ 8, 9.2, 9.4)
+-- =====================================================================
 create table if not exists public.conversation_members (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references public.conversations(id) on delete cascade,
@@ -583,15 +619,16 @@ create table if not exists public.conversation_members (
   unique (conversation_id, user_id)
 );
 
+create index if not exists conversation_members_conv_idx on public.conversation_members(conversation_id);
+create index if not exists conversation_members_user_idx on public.conversation_members(user_id);
+
 alter table public.conversations enable row level security;
 
 drop policy if exists "conversations_select_member" on public.conversations;
 create policy "conversations_select_member" on public.conversations
   for select using (
-    exists (
-      select 1 from public.conversation_members m
-      where m.conversation_id = id and m.user_id = auth.uid()
-    )
+    created_by = auth.uid()
+    or public.is_conversation_member(id, auth.uid())
   );
 
 drop policy if exists "conversations_insert_authenticated" on public.conversations;
@@ -600,37 +637,25 @@ create policy "conversations_insert_authenticated" on public.conversations
 
 drop policy if exists "conversations_update_group_admin" on public.conversations;
 create policy "conversations_update_group_admin" on public.conversations
-  for update using (
-    exists (
-      select 1 from public.conversation_members m
-      where m.conversation_id = id and m.user_id = auth.uid() and m.role = 'admin'
-    )
-  );
-
--- =====================================================================
--- 15. conversation_members (phân hệ 8, 9.2, 9.4)
--- =====================================================================
-create index if not exists conversation_members_conv_idx on public.conversation_members(conversation_id);
-create index if not exists conversation_members_user_idx on public.conversation_members(user_id);
+  for update using (public.is_conversation_admin(id, auth.uid()));
 
 alter table public.conversation_members enable row level security;
 
 drop policy if exists "conv_members_select_self_conv" on public.conversation_members;
 create policy "conv_members_select_self_conv" on public.conversation_members
   for select using (
-    exists (
-      select 1 from public.conversation_members m2
-      where m2.conversation_id = conversation_id and m2.user_id = auth.uid()
-    )
+    user_id = auth.uid()
+    or public.is_conversation_member(conversation_id, auth.uid())
   );
 
 drop policy if exists "conv_members_insert_self_or_admin" on public.conversation_members;
 create policy "conv_members_insert_self_or_admin" on public.conversation_members
   for insert with check (
     auth.uid() = user_id
+    or public.is_conversation_admin(conversation_id, auth.uid())
     or exists (
-      select 1 from public.conversation_members m2
-      where m2.conversation_id = conversation_id and m2.user_id = auth.uid() and m2.role = 'admin'
+      select 1 from public.conversations c
+      where c.id = conversation_id and c.created_by = auth.uid()
     )
   );
 
@@ -642,20 +667,17 @@ drop policy if exists "conv_members_delete_self_or_admin" on public.conversation
 create policy "conv_members_delete_self_or_admin" on public.conversation_members
   for delete using (
     auth.uid() = user_id
-    or exists (
-      select 1 from public.conversation_members m2
-      where m2.conversation_id = conversation_id and m2.user_id = auth.uid() and m2.role = 'admin'
-    )
+    or public.is_conversation_admin(conversation_id, auth.uid())
   );
 
 -- =====================================================================
--- 16. messages (phân hệ 8.2, 8.3, 8.5, 9.3)
+-- 17. messages (phân hệ 8.2, 8.3, 8.5, 9.3)
 -- =====================================================================
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references public.conversations(id) on delete cascade,
   sender_id uuid not null references public.profiles(id) on delete cascade,
-  type text not null check (type in ('text','image','file')),
+  type text not null default 'text' check (type in ('text','image','file')),
   content text,
   file_url text,
   status text not null default 'sent' check (status in ('sending','sent','failed','seen')),
@@ -669,27 +691,21 @@ alter table public.messages enable row level security;
 drop policy if exists "messages_select_member" on public.messages;
 create policy "messages_select_member" on public.messages
   for select using (
-    exists (
-      select 1 from public.conversation_members m
-      where m.conversation_id = conversation_id and m.user_id = auth.uid()
-    )
+    sender_id = auth.uid()
+    or public.is_conversation_member(conversation_id, auth.uid())
   );
 
 drop policy if exists "messages_insert_member" on public.messages;
 create policy "messages_insert_member" on public.messages
   for insert with check (
     auth.uid() = sender_id
-    and exists (
-      select 1 from public.conversation_members m
-      where m.conversation_id = conversation_id and m.user_id = auth.uid()
-    )
+    and public.is_conversation_member(conversation_id, auth.uid())
   );
 
 drop policy if exists "messages_update_own" on public.messages;
 create policy "messages_update_own" on public.messages
   for update using (auth.uid() = sender_id);
 
--- =====================================================================
 -- 17. notifications (phân hệ 10)
 -- =====================================================================
 create table if not exists public.notifications (
@@ -722,7 +738,9 @@ create policy "notifications_update_own" on public.notifications
   for update using (auth.uid() = user_id);
 
 -- =====================================================================
--- 18. Quyền truy cập bảng (Grants)
+
+-- =====================================================================
+-- 19. Quyền truy cập bảng (Grants)
 -- =====================================================================
 grant usage on schema public to authenticated, anon;
 grant select on public.profiles to authenticated, anon;
@@ -734,14 +752,18 @@ grant select on public.post_files to authenticated, anon;
 grant select, insert, update, delete on public.post_files to authenticated;
 grant select, insert, delete on public.likes to authenticated;
 grant select, insert, update, delete on public.comments to authenticated;
+grant select, insert, update, delete on public.conversations to authenticated;
+grant select, insert, update, delete on public.conversation_members to authenticated;
+grant select, insert, update, delete on public.messages to authenticated;
 
 -- =====================================================================
--- 19. Supabase Storage Buckets ('documents' & 'posts' cho ảnh và file bài viết)
+-- 20. Supabase Storage Buckets ('documents', 'posts', 'chat')
 -- =====================================================================
 insert into storage.buckets (id, name, public)
 values 
   ('documents', 'documents', true),
-  ('posts', 'posts', true)
+  ('posts', 'posts', true),
+  ('chat', 'chat', true)
 on conflict (id) do update set public = true;
 
 -- Cho phép đọc file công khai
@@ -750,12 +772,20 @@ create policy "Allow public read documents"
   on storage.objects for select
   using (bucket_id in ('documents', 'posts'));
 
+drop policy if exists "chat_storage_select_public" on storage.objects;
+create policy "chat_storage_select_public" on storage.objects
+  for select using (bucket_id = 'chat');
+
 -- Cho phép người dùng đã đăng nhập tải ảnh/tài liệu lên
 drop policy if exists "Allow authenticated upload documents" on storage.objects;
 create policy "Allow authenticated upload documents"
   on storage.objects for insert
   to authenticated
   with check (bucket_id in ('documents', 'posts'));
+
+drop policy if exists "chat_storage_insert_authenticated" on storage.objects;
+create policy "chat_storage_insert_authenticated" on storage.objects
+  for insert with check (bucket_id = 'chat' and auth.role() = 'authenticated');
 
 -- Cho phép người dùng đã đăng nhập cập nhật file của mình
 drop policy if exists "Allow authenticated update documents" on storage.objects;
@@ -772,8 +802,27 @@ create policy "Allow authenticated delete documents"
   using (bucket_id in ('documents', 'posts'));
 
 -- =====================================================================
--- Hết. 17 bảng đầy đủ, RLS bật, Cascade Delete, Storage bucket đã cấu hình.
+-- 21. Supabase Realtime CDC Publication
 -- =====================================================================
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table public.messages;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'conversations'
+  ) then
+    alter publication supabase_realtime add table public.conversations;
+  end if;
+end $$;
+
+alter table public.messages replica identity full;
+alter table public.conversations replica identity full;
 
 -- Friendship RPC contract (20261027_friendship_rpc.sql)
 
@@ -965,150 +1014,252 @@ grant execute on function public.get_friendship_state(uuid), public.send_friend_
     public.accept_friend_request(uuid), public.decline_friend_request(uuid),
     public.cancel_friend_request(uuid), public.remove_friendship(uuid),
     public.list_my_friendships(text,integer,timestamptz,uuid) to authenticated;
-notify pgrst, 'reload schema';
 
--- Friend notification RPCs (20261027150000_friend_notifications.sql)
+-- =====================================================================
+-- 23. Direct Chat & Messaging RPC Functions
+-- =====================================================================
 
--- Friendship RPCs write notification rows; clients read them only through the RPCs below.
-create index if not exists notifications_user_page_idx
-    on public.notifications(user_id, created_at desc, id desc);
-create index if not exists notifications_friend_request_idx
-    on public.notifications(user_id, actor_id) where type = 'friend_request';
-
-create or replace function public.send_friend_request(p_target_id uuid) returns jsonb
-language plpgsql security definer set search_path = '' as $$
-declare actor uuid := studyhub_private.friend_actor(); rel public.friendships; inserted uuid;
+-- Lấy hoặc tạo cuộc hội thoại 1-1
+create or replace function public.get_or_create_direct_conversation(p_target_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = 'public', 'auth', 'pg_temp'
+as $$
+declare
+    v_actor uuid := auth.uid();
+    v_conversation_id uuid;
+    v_target_name text;
+    v_target_avatar text;
 begin
-    if p_target_id is null or p_target_id = actor then
-        raise exception 'invalid target' using errcode = 'F0001';
+    if v_actor is null then
+        raise exception 'not authenticated' using errcode = '42501';
     end if;
-    if not studyhub_private.friend_peer_available(actor, p_target_id) then
-        raise exception 'peer unavailable' using errcode = 'F0002';
+
+    if p_target_id is null or p_target_id = v_actor then
+        raise exception 'invalid target user' using errcode = '22023';
     end if;
-    -- Unique index arbitrates concurrent/reversed sends. A concurrent cleanup
-    -- may remove the conflict; retry a bounded number of times with a new snapshot.
-    for attempt in 1..3 loop
-        inserted := null;
-        insert into public.friendships(requester_id, addressee_id, status)
-        values(actor, p_target_id, 'pending') on conflict do nothing returning id into inserted;
-        -- Only a newly created request notifies; repeated sends return the existing state silently.
-        if inserted is not null then
-            insert into public.notifications(user_id, actor_id, type) values (p_target_id, actor, 'friend_request');
-        end if;
-        select * into rel from public.friendships
-        where least(requester_id, addressee_id) = least(actor, p_target_id)
-          and greatest(requester_id, addressee_id) = greatest(actor, p_target_id) for update;
-        if found then return studyhub_private.friend_snapshot(actor, p_target_id); end if;
-    end loop;
-    raise exception 'relationship changed' using errcode = 'F0004';
-exception when foreign_key_violation then
-    raise exception 'peer unavailable' using errcode = 'F0002';
+
+    select display_name, avatar_url
+    into v_target_name, v_target_avatar
+    from public.profiles
+    where id = p_target_id and not is_banned;
+
+    if not found then
+        raise exception 'target user unavailable' using errcode = 'P0002';
+    end if;
+
+    -- Tìm cuộc hội thoại direct đã có giữa 2 người
+    select c.id into v_conversation_id
+    from public.conversations c
+    where c.type = 'direct'
+      and exists (select 1 from public.conversation_members m where m.conversation_id = c.id and m.user_id = v_actor)
+      and exists (select 1 from public.conversation_members m where m.conversation_id = c.id and m.user_id = p_target_id)
+    limit 1;
+
+    -- Nếu chưa có thì tạo mới hội thoại và thêm cả 2 vào thành viên
+    if v_conversation_id is null then
+        insert into public.conversations (type, created_by)
+        values ('direct', v_actor)
+        returning id into v_conversation_id;
+
+        insert into public.conversation_members (conversation_id, user_id, role)
+        values 
+            (v_conversation_id, v_actor, 'admin'),
+            (v_conversation_id, p_target_id, 'member')
+        on conflict (conversation_id, user_id) do nothing;
+    end if;
+
+    return jsonb_build_object(
+        'conversation_id', v_conversation_id,
+        'target_user_id', p_target_id,
+        'target_display_name', v_target_name,
+        'target_avatar_url', v_target_avatar
+    );
 end;
 $$;
 
-create or replace function studyhub_private.friend_mutate(p_id uuid, action text) returns jsonb
-language plpgsql security definer set search_path = '' as $$
-declare actor uuid := studyhub_private.friend_actor(); rel public.friendships; target uuid;
+-- Danh sách các cuộc trò chuyện của người dùng hiện tại
+create or replace function public.list_my_conversations()
+returns table (
+    conversation_id uuid,
+    type text,
+    title text,
+    avatar_url text,
+    last_message_content text,
+    last_message_type text,
+    last_message_at timestamptz,
+    unread_count bigint
+)
+language plpgsql
+security definer
+set search_path = 'public', 'auth', 'pg_temp'
+as $$
+declare
+    v_actor uuid := auth.uid();
 begin
-    if p_id is null then raise exception 'invalid relationship' using errcode = 'F0001'; end if;
-    select * into rel from public.friendships where id = p_id for update;
-    if not found then raise exception 'relationship unavailable' using errcode = 'F0004'; end if;
-    -- Unknown and unrelated ids deliberately share the same outcome.
-    if actor not in (rel.requester_id, rel.addressee_id) then
-        raise exception 'relationship unavailable' using errcode = 'F0004';
+    if v_actor is null then
+        raise exception 'not authenticated' using errcode = '42501';
     end if;
-    target := case when actor = rel.requester_id then rel.addressee_id else rel.requester_id end;
-    if action in ('accept','decline') and actor <> rel.addressee_id
-       or action = 'cancel' and actor <> rel.requester_id then
-        raise exception 'action not permitted' using errcode = 'F0003';
-    end if;
-    if action = 'accept' then
-        if not studyhub_private.friend_peer_available(actor, target) then
-            raise exception 'peer unavailable' using errcode = 'F0002';
-        end if;
-        if rel.status = 'pending' then
-            update public.friendships set status = 'accepted' where id = rel.id;
-            insert into public.notifications(user_id, actor_id, type) values (target, actor, 'friend_accept');
-            update public.notifications set is_read = true
-            where user_id = actor and actor_id = target and type = 'friend_request' and not is_read;
-        end if;
-        return studyhub_private.friend_snapshot(actor, target);
-    elsif action in ('decline','cancel','remove') then
-        if (action = 'remove' and rel.status <> 'accepted')
-           or (action <> 'remove' and rel.status <> 'pending') then
-            raise exception 'relationship changed' using errcode = 'F0004';
-        end if;
-        delete from public.friendships where id = rel.id;
-        if action = 'cancel' then
-            -- A withdrawn request should not linger in the recipient's notifications.
-            delete from public.notifications
-            where user_id = rel.addressee_id and actor_id = rel.requester_id and type = 'friend_request';
-        elsif action = 'decline' then
-            update public.notifications set is_read = true
-            where user_id = actor and actor_id = target and type = 'friend_request' and not is_read;
-        end if;
-        return jsonb_build_object('target_id',target,'state','none','friendship_id',null);
-    end if;
-    raise exception 'invalid action' using errcode = 'F0001';
+
+    return query
+    with my_convs as (
+        select m.conversation_id, m.last_read_at
+        from public.conversation_members m
+        where m.user_id = v_actor
+    ),
+    conv_details as (
+        select 
+            c.id,
+            c.type,
+            case 
+                when c.type = 'direct' then (
+                    select p.display_name 
+                    from public.conversation_members other_m
+                    join public.profiles p on p.id = other_m.user_id
+                    where other_m.conversation_id = c.id and other_m.user_id != v_actor
+                    limit 1
+                )
+                else c.name
+            end as computed_title,
+            case 
+                when c.type = 'direct' then (
+                    select p.avatar_url 
+                    from public.conversation_members other_m
+                    join public.profiles p on p.id = other_m.user_id
+                    where other_m.conversation_id = c.id and other_m.user_id != v_actor
+                    limit 1
+                )
+                else c.avatar_url
+            end as computed_avatar,
+            mc.last_read_at
+        from my_convs mc
+        join public.conversations c on c.id = mc.conversation_id
+    ),
+    last_msgs as (
+        select distinct on (msg.conversation_id)
+            msg.conversation_id,
+            msg.content,
+            msg.type,
+            msg.created_at
+        from public.messages msg
+        join my_convs mc on mc.conversation_id = msg.conversation_id
+        order by msg.conversation_id, msg.created_at desc
+    ),
+    unreads as (
+        select 
+            msg.conversation_id,
+            count(*) as unread_count
+        from public.messages msg
+        join my_convs mc on mc.conversation_id = msg.conversation_id
+        where msg.sender_id != v_actor 
+          and (mc.last_read_at is null or msg.created_at > mc.last_read_at)
+        group by msg.conversation_id
+    )
+    select 
+        cd.id as conversation_id,
+        cd.type,
+        coalesce(cd.computed_title, 'Trò chuyện') as title,
+        cd.computed_avatar as avatar_url,
+        lm.content as last_message_content,
+        lm.type as last_message_type,
+        lm.created_at as last_message_at,
+        coalesce(u.unread_count, 0) as unread_count
+    from conv_details cd
+    left join last_msgs lm on lm.conversation_id = cd.id
+    left join unreads u on u.conversation_id = cd.id
+    order by coalesce(lm.created_at, '1970-01-01'::timestamptz) desc;
 end;
 $$;
 
-create or replace function public.list_my_notifications(
-    p_limit integer default 20,
-    p_cursor_created_at timestamptz default null, p_cursor_id uuid default null
-) returns jsonb language plpgsql security definer set search_path = '' as $$
-declare actor uuid := studyhub_private.friend_actor(); page_size integer; result jsonb;
+-- Đánh dấu đã đọc cuộc hội thoại
+create or replace function public.mark_conversation_read(p_conversation_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = 'public', 'auth', 'pg_temp'
+as $$
+declare
+    v_actor uuid := auth.uid();
 begin
-    if p_limit is null or p_limit <= 0
-       or ((p_cursor_created_at is null) <> (p_cursor_id is null))
-       or (p_cursor_created_at is not null and not isfinite(p_cursor_created_at)) then
-        raise exception 'invalid page input' using errcode = 'F0001';
+    if v_actor is null then
+        raise exception 'not authenticated' using errcode = '42501';
     end if;
-    page_size := least(p_limit, 50);
-    with visible as (
-        select n.id, n.type, n.is_read, n.created_at, n.post_id,
-          case when p.id is null then null else
-            jsonb_build_object('id',p.id,'username',p.username,'display_name',p.display_name,'avatar_url',p.avatar_url) end as actor
-        from public.notifications n
-        left join public.profiles p on p.id = n.actor_id
-        where n.user_id = actor
-          -- Hide rows from banned or blocked actors, matching the friendship visibility rules.
-          and (n.actor_id is null or (p.id is not null and studyhub_private.friend_peer_available(actor, p.id)))
-    ), candidates as materialized (
-        select * from visible
-        where p_cursor_id is null or (created_at,id) < (p_cursor_created_at,p_cursor_id)
-        order by created_at desc, id desc limit page_size + 1
-    ), page as (select * from candidates order by created_at desc,id desc limit page_size)
-    select jsonb_build_object(
-        'items', coalesce((select jsonb_agg(to_jsonb(page) order by created_at desc,id desc) from page),'[]'::jsonb),
-        'next_cursor', case when (select count(*) from candidates) > page_size then
-           (select jsonb_build_object('created_at',created_at,'id',id) from page order by created_at,id limit 1)
-           else null end,
-        'unread_count', (select count(*) from visible where not is_read)) into result;
-    return result;
+
+    update public.conversation_members
+    set last_read_at = now()
+    where conversation_id = p_conversation_id and user_id = v_actor;
 end;
 $$;
 
-create or replace function public.mark_notifications_read(p_ids uuid[] default null) returns integer
-language plpgsql security definer set search_path = '' as $$
-declare actor uuid := studyhub_private.friend_actor(); changed integer;
+-- Gửi tin nhắn mới (text hoặc image)
+drop function if exists public.send_chat_message(uuid, text, text, text);
+drop function if exists public.send_chat_message;
+
+create or replace function public.send_chat_message(
+    p_conversation_id uuid,
+    p_content text default null,
+    p_type text default 'text',
+    p_file_url text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = 'public', 'auth', 'pg_temp'
+as $$
+declare
+    v_sender_id uuid := auth.uid();
+    v_msg record;
 begin
-    if p_ids is not null and (cardinality(p_ids) = 0 or cardinality(p_ids) > 100) then
-        raise exception 'invalid ids' using errcode = 'F0001';
+    if v_sender_id is null then
+        raise exception 'not authenticated' using errcode = '42501';
     end if;
-    -- Null marks everything; ids not owned by the actor are ignored.
-    update public.notifications set is_read = true
-    where user_id = actor and not is_read and (p_ids is null or id = any(p_ids));
-    get diagnostics changed = row_count;
-    return changed;
+
+    if not public.is_conversation_member(p_conversation_id, v_sender_id) then
+        raise exception 'user is not a member of this conversation' using errcode = '42501';
+    end if;
+
+    if p_type = 'text' and (p_content is null or btrim(p_content) = '') then
+        raise exception 'content cannot be empty for text message' using errcode = '22023';
+    end if;
+
+    if p_type = 'image' and (p_file_url is null or btrim(p_file_url) = '') then
+        raise exception 'file_url cannot be empty for image message' using errcode = '22023';
+    end if;
+
+    insert into public.messages (
+        id,
+        conversation_id,
+        sender_id,
+        type,
+        content,
+        file_url,
+        status,
+        created_at
+    )
+    values (
+        gen_random_uuid(),
+        p_conversation_id,
+        v_sender_id,
+        coalesce(p_type, 'text'),
+        p_content,
+        p_file_url,
+        'sent',
+        now()
+    )
+    returning * into v_msg;
+
+    update public.conversation_members
+    set last_read_at = now()
+    where conversation_id = p_conversation_id and user_id = v_sender_id;
+
+    return to_jsonb(v_msg);
 end;
 $$;
 
-revoke all on all functions in schema studyhub_private from public, anon, authenticated;
-revoke all on function public.send_friend_request(uuid),
-    public.list_my_notifications(integer,timestamptz,uuid), public.mark_notifications_read(uuid[])
-    from public, anon, authenticated;
-grant execute on function public.send_friend_request(uuid),
-    public.list_my_notifications(integer,timestamptz,uuid), public.mark_notifications_read(uuid[])
-    to authenticated;
+grant execute on function public.get_or_create_direct_conversation(uuid) to authenticated;
+grant execute on function public.list_my_conversations() to authenticated;
+grant execute on function public.mark_conversation_read(uuid) to authenticated;
+grant execute on function public.send_chat_message(uuid, text, text, text) to authenticated;
+
 notify pgrst, 'reload schema';

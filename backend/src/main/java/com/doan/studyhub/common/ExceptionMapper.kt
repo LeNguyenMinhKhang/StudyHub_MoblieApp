@@ -55,6 +55,7 @@ class ExceptionMapper {
             else -> ErrorType.UNKNOWN_ERROR
         }
         val fieldErrors = if (type == ErrorType.USERNAME_TAKEN) mapOf("username" to type.userMessage) else emptyMap()
-        return ApiError(type, fieldErrors)
+        val detail = if (type == ErrorType.UNKNOWN_ERROR && !error.message.isNullOrBlank()) error.message else null
+        return ApiError(type, fieldErrors, detail)
     }
 }
