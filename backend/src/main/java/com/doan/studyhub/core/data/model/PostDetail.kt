@@ -1,12 +1,21 @@
+
 package com.doan.studyhub.core.data.model
 
 import kotlinx.serialization.Serializable
 
-// Model tổng hợp hiển thị chi tiết bài viết kèm tác giả, môn học và danh sách file
+// Model tổng hợp hiển thị chi tiết bài viết
+// kèm tác giả, môn học, danh sách file, Like và bình luận.
 @Serializable
 data class PostDetail(
     val post: Post,
     val author: Profile? = null,
     val subject: Subject? = null,
-    val files: List<PostFile> = emptyList()
+    val files: List<PostFile> = emptyList(),
+
+    // Thông tin Like
+    val likeCount: Int = 0,
+    val isLikedByCurrentUser: Boolean = false,
+
+    // Tổng số bình luận và câu trả lời
+    val commentCount: Int = 0
 )
