@@ -97,6 +97,16 @@ class ProfileFragment : Fragment() {
             performFriendshipAction(1)
         }
 
+        binding.btnDirectChat.setOnClickListener {
+            val target = viewModel.uiState.value.profile ?: return@setOnClickListener
+            val chatFragment = com.doan.studyhub.user.ui.chat.DirectChatFragment.newInstance(
+                targetUserId = target.id,
+                targetName = target.displayName,
+                targetAvatar = target.avatarUrl
+            )
+            (parentFragment as? Home)?.openDetail(chatFragment)
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 friendship.uiState.collect(::renderFriendship)

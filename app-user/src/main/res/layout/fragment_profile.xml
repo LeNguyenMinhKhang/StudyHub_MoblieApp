@@ -126,6 +126,17 @@
                     android:layout_height="wrap_content"
                     android:text="@string/profile_retry"
                     android:visibility="gone" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnDirectChat"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Nhắn tin"
+                    app:icon="@drawable/ic_chat"
+                    app:iconGravity="textStart"
+                    app:backgroundTint="@color/primary"
+                    android:textColor="@color/on_primary" />
             </LinearLayout>
 
             <!-- User Posts Section -->
