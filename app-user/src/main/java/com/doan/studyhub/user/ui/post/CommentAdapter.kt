@@ -192,6 +192,8 @@ class CommentAdapter(
 
             val date = inputFormat.parse(normalized)
             date?.let { outputFormat.format(it) } ?: value
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             value
         }

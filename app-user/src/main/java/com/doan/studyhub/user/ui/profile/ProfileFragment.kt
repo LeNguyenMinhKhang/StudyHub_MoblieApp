@@ -214,6 +214,8 @@ class ProfileFragment : Fragment() {
                                 postRepository.toggleLike(postId)
 
                             onResult(Result.success(isLiked))
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             onResult(Result.failure(e))
                         }
@@ -290,6 +292,8 @@ class ProfileFragment : Fragment() {
                     loadUserPosts(it)
                 }
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),

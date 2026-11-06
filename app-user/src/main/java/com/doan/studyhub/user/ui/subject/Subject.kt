@@ -112,6 +112,8 @@ class Subject : Fragment() {
 
                 renderSubjects(searchInput.text.toString())
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 errorText.text =
                     "Không tải được môn học: ${e.message ?: "Lỗi kết nối"}"
@@ -174,6 +176,8 @@ class Subject : Fragment() {
                 // Chỉ cập nhật trạng thái giao diện sau khi thao tác thành công.
                 renderSubjects(searchInput.text.toString())
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),

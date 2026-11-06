@@ -164,6 +164,8 @@ class SubjectDetailFragment : Fragment() {
                                 postRepository.toggleLike(postId)
 
                             onResult(Result.success(isLiked))
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             onResult(Result.failure(e))
                         }
@@ -188,6 +190,8 @@ class SubjectDetailFragment : Fragment() {
                 postAdapter.submitList(posts)
                 emptyText.isVisible = posts.isEmpty()
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Ignore error in subject detail posts
             }
@@ -207,6 +211,8 @@ class SubjectDetailFragment : Fragment() {
 
                 loadSubjectPosts()
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),
@@ -251,6 +257,8 @@ class SubjectDetailFragment : Fragment() {
 
                 updateFollowButton()
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 showError(
                     "Không thể tải chi tiết môn học: ${e.message.orEmpty()}"
@@ -295,6 +303,8 @@ class SubjectDetailFragment : Fragment() {
 
                 updateFollowButton()
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),

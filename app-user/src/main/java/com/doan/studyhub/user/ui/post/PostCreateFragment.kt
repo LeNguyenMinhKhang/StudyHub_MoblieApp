@@ -113,6 +113,8 @@ class PostCreateFragment : Fragment() {
                 viewLifecycleOwner.lifecycleScope.launch {
                     try {
                         postRepository.deletePostFile(fileToRemove.remoteFileId)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         // ignored
                     }
@@ -258,6 +260,8 @@ class PostCreateFragment : Fragment() {
                         updateFileList()
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),
@@ -460,6 +464,8 @@ class PostCreateFragment : Fragment() {
                     val uri = selectedFile.uri!!
                     val bytes = try {
                         requireContext().contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         null
                     }
@@ -471,6 +477,8 @@ class PostCreateFragment : Fragment() {
                                 fileBytes = bytes,
                                 fileType = selectedFile.type
                             )
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             uploadErrors++
                             android.util.Log.e("PostCreateFragment", "Upload file failed: ${selectedFile.name}", e)
@@ -488,6 +496,8 @@ class PostCreateFragment : Fragment() {
                 Toast.makeText(requireContext(), successMsg, Toast.LENGTH_SHORT).show()
 
                 parentFragmentManager.popBackStack()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),
@@ -517,6 +527,8 @@ class PostCreateFragment : Fragment() {
                     if (sizeIndex != -1) size = cursor.getLong(sizeIndex)
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             // fallback
         }

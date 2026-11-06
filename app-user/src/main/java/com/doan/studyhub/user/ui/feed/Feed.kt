@@ -175,6 +175,8 @@ class Feed : Fragment() {
                         try {
                             val isLiked = postRepository.toggleLike(postId)
                             onResult(Result.success(isLiked))
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             onResult(Result.failure(e))
                         }
@@ -368,14 +370,14 @@ class Feed : Fragment() {
                 adapter.submitList(loadedPosts.toList())
                 updateEmptyState()
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Leaving Feed cancels the load; the view may already be gone.
+                throw e
             } catch (e: Exception) {
-                Toast.makeText(
-                    requireContext(),
-                    "Không thể tải bảng tin: ${e.message}",
-                    Toast.LENGTH_SHORT
-                ).show()
-
-                updateEmptyState()
+                context?.let {
+                    Toast.makeText(it, "Không thể tải bảng tin: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+                if (_binding != null) updateEmptyState()
 
             } finally {
                 isLoading = false
@@ -409,12 +411,12 @@ class Feed : Fragment() {
                     hasMore = false
                 }
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Toast.makeText(
-                    requireContext(),
-                    "Không thể tải thêm bài viết",
-                    Toast.LENGTH_SHORT
-                ).show()
+                context?.let {
+                    Toast.makeText(it, "Không thể tải thêm bài viết", Toast.LENGTH_SHORT).show()
+                }
 
             } finally {
                 isLoading = false
@@ -445,6 +447,8 @@ class Feed : Fragment() {
                 adapter.removePost(postId)
                 updateEmptyState()
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),

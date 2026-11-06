@@ -105,6 +105,8 @@ class MessageAdapter(
             val date = parser.parse(createdAt.take(19)) ?: return ""
             val outputFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
             outputFormat.format(date)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             ""
         }
