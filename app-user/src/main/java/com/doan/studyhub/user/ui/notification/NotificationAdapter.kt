@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.doan.studyhub.core.data.model.AppNotification
+import com.doan.studyhub.core.data.model.NotificationTemplates
 import com.doan.studyhub.user.R
 import com.doan.studyhub.user.databinding.ItemNotificationBinding
 import com.doan.studyhub.user.ui.profile.AvatarImageLoader
@@ -30,10 +31,13 @@ class NotificationAdapter(
     inner class Holder(private val binding: ItemNotificationBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: AppNotification) {
             val context = binding.root.context
-            val name = item.actor?.displayName ?: context.getString(R.string.notification_someone)
-            binding.tvNotificationText.text = context.getString(message(item.type), name)
+            // Plain-text formatting only: actor names are never interpreted as markup.
+            val name = item.actor?.displayName?.takeIf { it.isNotBlank() } ?: context.getString(R.string.notification_someone)
+            val text = context.getString(message(item), name)
+            binding.tvNotificationText.text = text
             binding.tvNotificationTime.text = relativeTime(item.createdAt)
             binding.viewUnreadDot.isVisible = !item.isRead
+            binding.root.contentDescription = if (item.isRead) text else context.getString(R.string.notification_unread_item, text)
             binding.root.setCardBackgroundColor(
                 ContextCompat.getColor(context, if (item.isRead) R.color.surface_card else R.color.primary_container)
             )
@@ -42,15 +46,14 @@ class NotificationAdapter(
         }
     }
 
-    private fun message(type: String) = when (type) {
+    /** Unknown types/template versions fall back to a safe generic sentence. */
+    private fun message(item: AppNotification) = if (!NotificationTemplates.isSupported(item)) {
+        R.string.notification_generic
+    } else when (item.type) {
         "friend_request" -> R.string.notification_friend_request
         "friend_accept" -> R.string.notification_friend_accept
         "like" -> R.string.notification_like
-        "comment" -> R.string.notification_comment
-        "best_answer" -> R.string.notification_best_answer
-        "group_added" -> R.string.notification_group_added
-        "new_post" -> R.string.notification_new_post
-        else -> R.string.notification_generic
+        else -> R.string.notification_comment
     }
 
     private fun relativeTime(createdAt: String): String {

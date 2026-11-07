@@ -130,6 +130,8 @@ class DirectChatFragment : Fragment() {
             } else {
                 Toast.makeText(requireContext(), "Không thể đọc dữ liệu ảnh", Toast.LENGTH_SHORT).show()
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Toast.makeText(requireContext(), "Lỗi khi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
         }

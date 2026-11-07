@@ -159,6 +159,8 @@ class PostDetailFragment : Fragment() {
                 renderPostDetail(detail)
                 loadComments()
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),
@@ -375,6 +377,8 @@ class PostDetailFragment : Fragment() {
             for (userId in userIds) {
                 authorsById[userId] = try {
                     profileRemoteDataSource.getPublicById(userId)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
                 } catch (_: Exception) {
                     null
                 }
@@ -434,6 +438,8 @@ class PostDetailFragment : Fragment() {
             binding.rvDetailComments.isVisible =
                 comments.isNotEmpty()
 
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             binding.tvDetailCommentsError.text =
                 "Không thể tải bình luận. Vui lòng kiểm tra kết nối và thử lại."
@@ -520,6 +526,8 @@ class PostDetailFragment : Fragment() {
 
                 loadComments()
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),
@@ -582,6 +590,8 @@ class PostDetailFragment : Fragment() {
                                         Toast.LENGTH_SHORT
                                     ).show()
 
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    throw e
                                 } catch (e: Exception) {
                                     Toast.makeText(
                                         requireContext(),
@@ -619,6 +629,8 @@ class PostDetailFragment : Fragment() {
                             Toast.LENGTH_SHORT
                         ).show()
 
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Toast.makeText(
                             requireContext(),
@@ -671,6 +683,8 @@ class PostDetailFragment : Fragment() {
                             Toast.LENGTH_SHORT
                         ).show()
 
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Toast.makeText(
                             requireContext(),
@@ -712,6 +726,8 @@ class PostDetailFragment : Fragment() {
 
                 parentFragmentManager.popBackStack()
 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),

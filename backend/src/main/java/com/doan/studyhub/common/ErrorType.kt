@@ -27,6 +27,7 @@ enum class ErrorType(
     AVATAR_SAVE_FAILED("AVATAR_SAVE_FAILED", "Không thể lưu ảnh đại diện. Vui lòng thử lại.", "Avatar commit failed", LogLevel.ERROR, true),
     FRIENDSHIP_UNAVAILABLE("FRIENDSHIP_UNAVAILABLE", "Không thể thực hiện với người dùng này.", "Friendship peer unavailable", LogLevel.INFO, false),
     FRIENDSHIP_STALE("FRIENDSHIP_STALE", "Quan hệ đã thay đổi. Vui lòng tải lại.", "Friendship state changed", LogLevel.INFO, false),
+    NOTIFICATION_UNAVAILABLE("NOTIFICATION_UNAVAILABLE", "Nội dung này không còn khả dụng.", "Notification or its source unavailable", LogLevel.INFO, false),
     AVATAR_UPLOAD_FAILED("AVATAR_UPLOAD_FAILED", "Tải ảnh lên thất bại. Vui lòng thử lại.", "Avatar upload to storage failed", LogLevel.WARN, true),
     AVATAR_CONFLICT("AVATAR_CONFLICT", "Ảnh đại diện đã được cập nhật từ thiết bị khác. Vui lòng tải lại và thử lại.", "Avatar OCC conflict", LogLevel.INFO, false),
     AVATAR_OUTCOME_UNKNOWN("AVATAR_OUTCOME_UNKNOWN", "Không xác định được kết quả lưu ảnh. Vui lòng kiểm tra lại.", "Avatar publish outcome unknown after timeout", LogLevel.WARN, false),

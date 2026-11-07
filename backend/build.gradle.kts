@@ -49,7 +49,8 @@ dependencies {
     implementation(libs.supabase.auth)
     implementation(libs.supabase.storage)
     implementation(libs.supabase.realtime)
-    implementation(libs.ktor.client.android)
+    // OkHttp supports WebSockets (required by Realtime); the Android engine does not.
+    implementation(libs.ktor.client.okhttp)
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)

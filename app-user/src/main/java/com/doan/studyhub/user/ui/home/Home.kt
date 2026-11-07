@@ -13,13 +13,12 @@ import androidx.core.view.isVisible
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
-import com.doan.studyhub.common.ApiResponse
 import com.doan.studyhub.core.data.model.Profile
-import com.doan.studyhub.core.data.repository.NotificationRepository
 import com.doan.studyhub.core.data.repository.AvatarRepository
 import com.doan.studyhub.core.data.local.AvatarMode
 import com.doan.studyhub.core.data.local.AvatarSelection
@@ -31,6 +30,7 @@ import com.doan.studyhub.user.ui.feed.Feed
 import com.doan.studyhub.user.ui.friend.Friend
 import com.doan.studyhub.user.ui.group.Group
 import com.doan.studyhub.user.ui.notification.Notification
+import com.doan.studyhub.user.ui.notification.NotificationViewModel
 import com.doan.studyhub.user.ui.post.Post
 import com.doan.studyhub.user.ui.profile.EditProfileFragment
 import com.doan.studyhub.user.ui.profile.AvatarImageLoader
@@ -38,6 +38,8 @@ import com.doan.studyhub.user.ui.profile.ProfileFragment
 import com.doan.studyhub.user.ui.search.SearchFragment
 import com.doan.studyhub.user.ui.settings.Settings
 import com.doan.studyhub.user.ui.subject.Subject
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class Home : Fragment() {
@@ -46,7 +48,8 @@ class Home : Fragment() {
     private val auth: AuthViewModel by activityViewModels()
     private lateinit var avatars: AvatarRepository
     private var avatarRequest = 0
-    private val notifications = NotificationRepository()
+    // Single owner of notification state for every screen inside Home (badges + center).
+    private val notifications: NotificationViewModel by viewModels()
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, state: Bundle?): View {
         _binding = HomeBinding.inflate(inflater, container, false)
@@ -73,12 +76,7 @@ class Home : Fragment() {
         })
     }
 
-    override fun onResume() {
-        super.onResume()
-        refreshUnreadNotifications()
-    }
-
-    fun showUnreadNotifications(count: Int) {
+    private fun showUnreadNotifications(count: Int) {
         val binding = _binding ?: return
         val hasUnread = count > 0
         binding.viewHamburgerBadge.isVisible = hasUnread
@@ -90,13 +88,6 @@ class Home : Fragment() {
         binding.tvNavNotificationBadge.text = countText
         binding.tvNavNotificationBadge.contentDescription = getString(R.string.notification_unread_count, count)
         binding.tvHeaderNotificationBadge.contentDescription = getString(R.string.notification_unread_count, count)
-    }
-
-    private fun refreshUnreadNotifications() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            val result = notifications.list(limit = 1)
-            if (result is ApiResponse.Success) showUnreadNotifications(result.data.unreadCount)
-        }
     }
 
     fun openDetail(fragment: Fragment) {
@@ -174,7 +165,7 @@ class Home : Fragment() {
     private fun setupListeners() {
         binding.btnHamburger.setOnClickListener { binding.drawerLayout.openDrawer(GravityCompat.START) }
         binding.drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
-            override fun onDrawerOpened(drawerView: View) = refreshUnreadNotifications()
+            override fun onDrawerOpened(drawerView: View) = notifications.refresh()
         })
 
         // Top Bar Quick Access Action Icons
@@ -225,6 +216,11 @@ class Home : Fragment() {
                     }
                 }
                 launch { avatars.revision.collect { refreshAvatar(auth.uiState.value.profile) } }
+                // Foreground-only private channel; leaving STARTED closes it, re-entry re-subscribes and re-reads.
+                launch { notifications.observeSignals() }
+                launch {
+                    notifications.uiState.map { it.unreadCount }.distinctUntilChanged().collect(::showUnreadNotifications)
+                }
             }
         }
     }
