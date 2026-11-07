@@ -35,6 +35,7 @@ import com.doan.studyhub.user.ui.post.Post
 import com.doan.studyhub.user.ui.profile.EditProfileFragment
 import com.doan.studyhub.user.ui.profile.AvatarImageLoader
 import com.doan.studyhub.user.ui.profile.ProfileFragment
+import com.doan.studyhub.user.ui.search.SearchFragment
 import com.doan.studyhub.user.ui.settings.Settings
 import com.doan.studyhub.user.ui.subject.Subject
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -95,6 +96,13 @@ class Home : Fragment() {
             .addToBackStack("profile_detail")
             .commit()
         binding.drawerLayout.closeDrawer(GravityCompat.START)
+    }
+
+    // Opens search on top of the current screen; back returns to that screen.
+    private fun openSearch() {
+        val current = childFragmentManager.findFragmentById(R.id.containerMain)
+        if (current is SearchFragment) return
+        if (current is EditProfileFragment) current.requestLeave { openDetail(SearchFragment()) } else openDetail(SearchFragment())
     }
 
     fun closeDetail() {
@@ -161,6 +169,7 @@ class Home : Fragment() {
         })
 
         // Top Bar Quick Access Action Icons
+        binding.btnHeaderSearch.setOnClickListener { openSearch() }
         binding.btnHeaderSubject.setOnClickListener { requestRoot(Subject()) }
         binding.btnHeaderFriend.setOnClickListener { requestRoot(Friend()) }
         binding.btnHeaderChat.setOnClickListener { requestRoot(Chat()) }

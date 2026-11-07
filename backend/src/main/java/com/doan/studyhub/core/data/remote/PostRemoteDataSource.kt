@@ -134,7 +134,15 @@ class PostRemoteDataSource {
             matchesCategory && matchesVisibility
         }
 
+        return enrichPosts(posts)
+    }
+
+    // Ghép tác giả, môn học, file, lượt thích và số bình luận cho danh sách bài viết,
+    // giữ nguyên thứ tự đầu vào. Dùng chung cho bảng tin và kết quả tìm kiếm.
+    suspend fun enrichPosts(posts: List<Post>): List<PostDetail> {
         if (posts.isEmpty()) return emptyList()
+
+        val currentUserId = SupabaseClient.client.auth.currentUserOrNull()?.id
 
         val authorIds = posts.map { it.authorId.trim() }
             .filter { it.isNotBlank() }
