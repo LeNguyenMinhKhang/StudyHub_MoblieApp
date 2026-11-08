@@ -1,3 +1,4 @@
+
 package com.doan.studyhub.user.ui.chat
 
 import android.text.format.DateUtils
@@ -37,30 +38,31 @@ class ConversationAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: ConversationSummary) {
-            binding.tvDisplayName.text = item.targetDisplayName
+            // Tên cuộc hội thoại: cá nhân hoặc nhóm
+            binding.tvDisplayName.text = item.title
 
-            // Last message preview
-            val preview = when (item.lastMessageType) {
+            // Nội dung tin nhắn cuối
+            binding.tvLastMessage.text = when (item.lastMessageType) {
                 "image" -> "[Hình ảnh]"
                 "file" -> "[Tập tin đính kèm]"
                 else -> item.lastMessageContent ?: "Chưa có tin nhắn nào"
             }
-            binding.tvLastMessage.text = preview
 
-            // Time
-            binding.tvTime.text = formatRelativeTime(item.lastMessageCreatedAt)
+            // Thời gian tin nhắn cuối
+            binding.tvTime.text = formatRelativeTime(item.lastMessageAt)
 
-            // Unread badge
+            // Số tin nhắn chưa đọc
+            binding.tvUnreadBadge.isVisible = item.unreadCount > 0
+
             if (item.unreadCount > 0) {
-                binding.tvUnreadBadge.isVisible = true
-                binding.tvUnreadBadge.text = if (item.unreadCount > 99) "99+" else item.unreadCount.toString()
-            } else {
-                binding.tvUnreadBadge.isVisible = false
+                binding.tvUnreadBadge.text =
+                    if (item.unreadCount > 99) "99+"
+                    else item.unreadCount.toString()
             }
 
-            // Avatar
+            // Avatar cá nhân hoặc nhóm
             Glide.with(binding.root)
-                .load(item.targetAvatarUrl)
+                .load(item.avatarUrl)
                 .circleCrop()
                 .placeholder(R.drawable.ic_person)
                 .error(R.drawable.ic_person)
@@ -73,11 +75,18 @@ class ConversationAdapter(
 
         private fun formatRelativeTime(createdAt: String?): String {
             if (createdAt.isNullOrBlank()) return ""
+
             return try {
-                val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
+                val parser = SimpleDateFormat(
+                    "yyyy-MM-dd'T'HH:mm:ss",
+                    Locale.US
+                ).apply {
                     timeZone = TimeZone.getTimeZone("UTC")
                 }
-                val millis = parser.parse(createdAt.take(19))?.time ?: return ""
+
+                val millis = parser.parse(createdAt.take(19))?.time
+                    ?: return ""
+
                 DateUtils.getRelativeTimeSpanString(
                     millis,
                     System.currentTimeMillis(),
@@ -93,13 +102,19 @@ class ConversationAdapter(
     }
 
     private object DiffCallback : DiffUtil.ItemCallback<ConversationSummary>() {
-        override fun areItemsTheSame(oldItem: ConversationSummary, newItem: ConversationSummary): Boolean {
+
+        override fun areItemsTheSame(
+            oldItem: ConversationSummary,
+            newItem: ConversationSummary
+        ): Boolean {
             return oldItem.conversationId == newItem.conversationId
         }
 
-        override fun areContentsTheSame(oldItem: ConversationSummary, newItem: ConversationSummary): Boolean {
+        override fun areContentsTheSame(
+            oldItem: ConversationSummary,
+            newItem: ConversationSummary
+        ): Boolean {
             return oldItem == newItem
         }
     }
 }
-
