@@ -127,6 +127,23 @@
                     android:text="@string/profile_retry"
                     android:visibility="gone" />
 
+                <ProgressBar
+                    android:id="@+id/progressBlock"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnProfileBlock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Chặn người dùng"
+                    android:textColor="@color/text_primary"
+                    app:backgroundTint="@color/border_subtle" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnDirectChat"
                     android:layout_width="match_parent"
