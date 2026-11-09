@@ -1,4 +1,4 @@
-﻿-- =====================================================================
+-- =====================================================================
 -- StudyHub – Schema Supabase/PostgreSQL (Đã cập nhật đầy đủ)
 -- Chạy toàn bộ file này trong Supabase Dashboard > SQL Editor
 -- Đã bao gồm:
@@ -505,6 +505,7 @@ create policy "friendships_delete_involved" on public.friendships
 
 -- =====================================================================
 -- 12. blocks (phân hệ 7.6)
+-- Source: supabase/migrations/20261108120000_user_block_settings.sql
 -- =====================================================================
 create table if not exists public.blocks (
   id uuid primary key default gen_random_uuid(),
@@ -516,17 +517,278 @@ create table if not exists public.blocks (
 
 alter table public.blocks enable row level security;
 
-drop policy if exists "blocks_select_own" on public.blocks;
-create policy "blocks_select_own" on public.blocks
-  for select using (auth.uid() = blocker_id);
+-- Snapshot trạng thái Block
+create or replace function studyhub_private.block_snapshot(
+    p_actor uuid,
+    p_target uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_blocked_by_me boolean;
+    v_blocked_me boolean;
+begin
+    if p_target is null or p_target = p_actor then
+        raise exception 'invalid target' using errcode = 'F0001';
+    end if;
 
-drop policy if exists "blocks_insert_own" on public.blocks;
-create policy "blocks_insert_own" on public.blocks
-  for insert with check (auth.uid() = blocker_id);
+    if not exists (
+        select 1
+        from public.profiles
+        where id = p_target
+    ) then
+        raise exception 'target unavailable' using errcode = 'F0002';
+    end if;
 
-drop policy if exists "blocks_delete_own" on public.blocks;
-create policy "blocks_delete_own" on public.blocks
-  for delete using (auth.uid() = blocker_id);
+    select exists (
+        select 1 from public.blocks
+        where blocker_id = p_actor and blocked_id = p_target
+    ) into v_blocked_by_me;
+
+    select exists (
+        select 1 from public.blocks
+        where blocker_id = p_target and blocked_id = p_actor
+    ) into v_blocked_me;
+
+    return jsonb_build_object(
+        'target_id', p_target,
+        'blocked_by_me', v_blocked_by_me,
+        'blocked_me', v_blocked_me,
+        'is_blocked', v_blocked_by_me or v_blocked_me
+    );
+end;
+$$;
+
+-- Lấy trạng thái Block
+create or replace function public.get_block_state(
+    p_target_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+begin
+    return studyhub_private.block_snapshot(v_actor, p_target_id);
+end;
+$$;
+
+-- Block user
+create or replace function public.block_user(
+    p_target_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_relation public.friendships;
+begin
+    if p_target_id is null or p_target_id = v_actor then
+        raise exception 'invalid target' using errcode = 'F0001';
+    end if;
+
+    if not exists (
+        select 1
+        from public.profiles
+        where id = p_target_id
+          and not is_banned
+    ) then
+        raise exception 'peer unavailable' using errcode = 'F0002';
+    end if;
+
+    -- Serialize các thao tác Block trên cùng một cặp người dùng
+    perform pg_advisory_xact_lock(
+        hashtextextended(
+            least(v_actor::text, p_target_id::text)
+            || ':'
+            || greatest(v_actor::text, p_target_id::text),
+            0
+        )
+    );
+
+    -- Ngăn thao tác Friendship đồng thời vượt qua thời điểm Block
+    lock table public.friendships in share row exclusive mode;
+
+    -- Tạo Block. Nếu đã tồn tại thì không tạo bản ghi trùng
+    insert into public.blocks(blocker_id, blocked_id)
+    values (v_actor, p_target_id)
+    on conflict (blocker_id, blocked_id) do nothing;
+
+    -- Xóa quan hệ bạn bè hoặc lời mời đang chờ giữa hai người
+    delete from public.friendships
+    where least(requester_id, addressee_id)
+              = least(v_actor, p_target_id)
+      and greatest(requester_id, addressee_id)
+              = greatest(v_actor, p_target_id)
+    returning * into v_relation;
+
+    -- Dọn thông báo lời mời kết bạn liên quan
+    if found then
+        delete from public.notifications
+        where type = 'friend_request'
+          and user_id = v_relation.addressee_id
+          and actor_id = v_relation.requester_id
+          and (
+              source_id = v_relation.id
+              or source_id is null
+          );
+    end if;
+
+    return studyhub_private.block_snapshot(
+        v_actor,
+        p_target_id
+    );
+end;
+$$;
+
+-- Unblock user
+create or replace function public.unblock_user(
+    p_target_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+begin
+    if p_target_id is null or p_target_id = v_actor then
+        raise exception 'invalid target' using errcode = 'F0001';
+    end if;
+
+    perform pg_advisory_xact_lock(
+        hashtextextended(
+            least(v_actor::text, p_target_id::text)
+            || ':'
+            || greatest(v_actor::text, p_target_id::text),
+            0
+        )
+    );
+
+    -- Chỉ xóa bản ghi do chính actor tạo
+    delete from public.blocks
+    where blocker_id = v_actor
+      and blocked_id = p_target_id;
+
+    return studyhub_private.block_snapshot(
+        v_actor,
+        p_target_id
+    );
+end;
+$$;
+
+-- Danh sách người tôi đã Block
+create or replace function public.list_blocked_users(
+    p_limit integer default 20,
+    p_cursor_created_at timestamptz default null,
+    p_cursor_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_page_size integer;
+    v_result jsonb;
+begin
+    if p_limit is null
+       or p_limit <= 0
+       or ((p_cursor_created_at is null) <> (p_cursor_id is null))
+       or (
+           p_cursor_created_at is not null
+           and not isfinite(p_cursor_created_at)
+       ) then
+        raise exception 'invalid page input' using errcode = 'F0001';
+    end if;
+
+    v_page_size := least(p_limit, 50);
+
+    with candidates as materialized (
+        select
+            b.id,
+            b.created_at,
+            jsonb_build_object(
+                'id', p.id,
+                'username', p.username,
+                'display_name', p.display_name,
+                'avatar_url', p.avatar_url
+            ) as peer
+        from public.blocks b
+        join public.profiles p
+            on p.id = b.blocked_id
+        where b.blocker_id = v_actor
+          and (
+              p_cursor_id is null
+              or (b.created_at, b.id)
+                 < (p_cursor_created_at, p_cursor_id)
+          )
+        order by b.created_at desc, b.id desc
+        limit v_page_size + 1
+    ),
+    page as (
+        select *
+        from candidates
+        order by created_at desc, id desc
+        limit v_page_size
+    )
+    select jsonb_build_object(
+        'items',
+        coalesce(
+            (
+                select jsonb_agg(
+                    to_jsonb(page)
+                    order by created_at desc, id desc
+                )
+                from page
+            ),
+            '[]'::jsonb
+        ),
+        'next_cursor',
+        case
+            when (select count(*) from candidates) > v_page_size
+            then (
+                select jsonb_build_object(
+                    'created_at', created_at,
+                    'id', id
+                )
+                from page
+                order by created_at, id
+                limit 1
+            )
+            else null
+        end
+    )
+    into v_result;
+
+    return v_result;
+end;
+$$;
+
+-- Chỉ sử dụng RPC, không cho client thao tác trực tiếp trên bảng blocks
+revoke all on public.blocks from public, anon, authenticated;
+revoke all on function studyhub_private.block_snapshot(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.get_block_state(uuid),
+    public.block_user(uuid),
+    public.unblock_user(uuid),
+    public.list_blocked_users(integer, timestamptz, uuid)
+from public, anon, authenticated;
+
+grant execute on function public.get_block_state(uuid),
+    public.block_user(uuid),
+    public.unblock_user(uuid),
+    public.list_blocked_users(integer, timestamptz, uuid)
+to authenticated;
 
 -- =====================================================================
 -- 13. reports (phân hệ 6.7, 12.4)
@@ -562,7 +824,7 @@ create policy "reports_update_admin" on public.reports
 -- =====================================================================
 
 -- =====================================================================
--- 14. Helper functions for Chat RLS (Tránh đệ quy)
+-- 14. Helper functions for Chat RLS (Tránh đệ quy & kiểm tra block)
 -- =====================================================================
 create or replace function public.is_conversation_member(p_conversation_id uuid, p_user_id uuid)
 returns boolean
@@ -590,8 +852,61 @@ as $$
   );
 $$;
 
+create or replace function public.direct_chat_available(
+    p_conversation_id uuid,
+    p_actor_id uuid
+)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+    v_type text;
+    v_peer_id uuid;
+begin
+    if p_actor_id is null or p_conversation_id is null then
+        return false;
+    end if;
+
+    select c.type
+    into v_type
+    from public.conversations c
+    where c.id = p_conversation_id;
+
+    if not found then
+        return false;
+    end if;
+
+    -- Group chat không bị ảnh hưởng bởi chức năng block.
+    if v_type <> 'direct' then
+        return true;
+    end if;
+
+    -- Tìm người còn lại trong direct conversation.
+    select m.user_id
+    into v_peer_id
+    from public.conversation_members m
+    where m.conversation_id = p_conversation_id
+      and m.user_id <> p_actor_id
+    limit 1;
+
+    if v_peer_id is null then
+        return false;
+    end if;
+
+    -- Kiểm tra block hai chiều.
+    return studyhub_private.friend_peer_available(
+        p_actor_id,
+        v_peer_id
+    );
+end;
+$$;
+
 grant execute on function public.is_conversation_member(uuid, uuid) to authenticated, anon;
 grant execute on function public.is_conversation_admin(uuid, uuid) to authenticated, anon;
+grant execute on function public.direct_chat_available(uuid, uuid) to authenticated;
 
 -- =====================================================================
 -- 15. conversations (phân hệ 8, 9)
@@ -627,8 +942,14 @@ alter table public.conversations enable row level security;
 drop policy if exists "conversations_select_member" on public.conversations;
 create policy "conversations_select_member" on public.conversations
   for select using (
-    created_by = auth.uid()
-    or public.is_conversation_member(id, auth.uid())
+    (
+      created_by = auth.uid()
+      or public.is_conversation_member(id, auth.uid())
+    )
+    and (
+      type <> 'direct'
+      or public.direct_chat_available(id, auth.uid())
+    )
   );
 
 drop policy if exists "conversations_insert_authenticated" on public.conversations;
@@ -644,8 +965,11 @@ alter table public.conversation_members enable row level security;
 drop policy if exists "conv_members_select_self_conv" on public.conversation_members;
 create policy "conv_members_select_self_conv" on public.conversation_members
   for select using (
-    user_id = auth.uid()
-    or public.is_conversation_member(conversation_id, auth.uid())
+    (
+      user_id = auth.uid()
+      or public.is_conversation_member(conversation_id, auth.uid())
+    )
+    and public.direct_chat_available(conversation_id, auth.uid())
   );
 
 drop policy if exists "conv_members_insert_self_or_admin" on public.conversation_members;
@@ -691,8 +1015,8 @@ alter table public.messages enable row level security;
 drop policy if exists "messages_select_member" on public.messages;
 create policy "messages_select_member" on public.messages
   for select using (
-    sender_id = auth.uid()
-    or public.is_conversation_member(conversation_id, auth.uid())
+    public.is_conversation_member(conversation_id, auth.uid())
+    and public.direct_chat_available(conversation_id, auth.uid())
   );
 
 drop policy if exists "messages_insert_member" on public.messages;
@@ -700,6 +1024,7 @@ create policy "messages_insert_member" on public.messages
   for insert with check (
     auth.uid() = sender_id
     and public.is_conversation_member(conversation_id, auth.uid())
+    and public.direct_chat_available(conversation_id, auth.uid())
   );
 
 drop policy if exists "messages_update_own" on public.messages;
@@ -1017,14 +1342,17 @@ grant execute on function public.get_friendship_state(uuid), public.send_friend_
 
 -- =====================================================================
 -- 23. Direct Chat & Messaging RPC Functions
+-- Source: supabase/migrations/20261108130000_block_direct_chat.sql
 -- =====================================================================
 
--- Lấy hoặc tạo cuộc hội thoại 1-1
-create or replace function public.get_or_create_direct_conversation(p_target_id uuid)
+-- Lấy hoặc tạo cuộc hội thoại 1-1 (Kiểm tra block 2 chiều)
+create or replace function public.get_or_create_direct_conversation(
+    p_target_id uuid
+)
 returns jsonb
 language plpgsql
 security definer
-set search_path = 'public', 'auth', 'pg_temp'
+set search_path = 'public', 'auth', 'studyhub_private', 'pg_temp'
 as $$
 declare
     v_actor uuid := auth.uid();
@@ -1033,38 +1361,76 @@ declare
     v_target_avatar text;
 begin
     if v_actor is null then
-        raise exception 'not authenticated' using errcode = '42501';
+        raise exception 'not authenticated'
+            using errcode = '42501';
     end if;
 
     if p_target_id is null or p_target_id = v_actor then
-        raise exception 'invalid target user' using errcode = '22023';
+        raise exception 'invalid target user'
+            using errcode = '22023';
     end if;
 
-    select display_name, avatar_url
-    into v_target_name, v_target_avatar
+    select
+        display_name,
+        avatar_url
+    into
+        v_target_name,
+        v_target_avatar
     from public.profiles
-    where id = p_target_id and not is_banned;
+    where id = p_target_id
+      and not is_banned;
 
     if not found then
-        raise exception 'target user unavailable' using errcode = 'P0002';
+        raise exception 'target user unavailable'
+            using errcode = 'P0002';
+    end if;
+
+    -- Không cho tạo hoặc mở direct chat nếu một trong hai bên đã block.
+    if not studyhub_private.friend_peer_available(
+        v_actor,
+        p_target_id
+    ) then
+        raise exception 'direct conversation unavailable'
+            using errcode = '42501';
     end if;
 
     -- Tìm cuộc hội thoại direct đã có giữa 2 người
-    select c.id into v_conversation_id
+    select c.id
+    into v_conversation_id
     from public.conversations c
     where c.type = 'direct'
-      and exists (select 1 from public.conversation_members m where m.conversation_id = c.id and m.user_id = v_actor)
-      and exists (select 1 from public.conversation_members m where m.conversation_id = c.id and m.user_id = p_target_id)
+      and exists (
+          select 1
+          from public.conversation_members m
+          where m.conversation_id = c.id
+            and m.user_id = v_actor
+      )
+      and exists (
+          select 1
+          from public.conversation_members m
+          where m.conversation_id = c.id
+            and m.user_id = p_target_id
+      )
     limit 1;
 
     -- Nếu chưa có thì tạo mới hội thoại và thêm cả 2 vào thành viên
     if v_conversation_id is null then
-        insert into public.conversations (type, created_by)
-        values ('direct', v_actor)
+        insert into public.conversations (
+            type,
+            created_by
+        )
+        values (
+            'direct',
+            v_actor
+        )
         returning id into v_conversation_id;
 
-        insert into public.conversation_members (conversation_id, user_id, role)
-        values 
+        insert into public.conversation_members (
+            conversation_id,
+            user_id,
+            role
+        )
+        values
             (v_conversation_id, v_actor, 'admin'),
             (v_conversation_id, p_target_id, 'member')
         on conflict (conversation_id, user_id) do nothing;
@@ -1079,7 +1445,7 @@ begin
 end;
 $$;
 
--- Danh sách các cuộc trò chuyện của người dùng hiện tại
+-- Danh sách các cuộc trò chuyện của người dùng hiện tại (ẩn direct chat bị block)
 create or replace function public.list_my_conversations()
 returns table (
     conversation_id uuid,
@@ -1099,43 +1465,57 @@ declare
     v_actor uuid := auth.uid();
 begin
     if v_actor is null then
-        raise exception 'not authenticated' using errcode = '42501';
+        raise exception 'not authenticated'
+            using errcode = '42501';
     end if;
 
     return query
     with my_convs as (
-        select m.conversation_id, m.last_read_at
+        select
+            m.conversation_id,
+            m.last_read_at
         from public.conversation_members m
         where m.user_id = v_actor
     ),
+
     conv_details as (
-        select 
+        select
             c.id,
             c.type,
-            case 
+
+            case
                 when c.type = 'direct' then (
-                    select p.display_name 
+                    select p.display_name
                     from public.conversation_members other_m
-                    join public.profiles p on p.id = other_m.user_id
-                    where other_m.conversation_id = c.id and other_m.user_id != v_actor
+                    join public.profiles p
+                      on p.id = other_m.user_id
+                    where other_m.conversation_id = c.id
+                      and other_m.user_id <> v_actor
                     limit 1
                 )
                 else c.name
             end as computed_title,
-            case 
+
+            case
                 when c.type = 'direct' then (
-                    select p.avatar_url 
+                    select p.avatar_url
                     from public.conversation_members other_m
-                    join public.profiles p on p.id = other_m.user_id
-                    where other_m.conversation_id = c.id and other_m.user_id != v_actor
+                    join public.profiles p
+                      on p.id = other_m.user_id
+                    where other_m.conversation_id = c.id
+                      and other_m.user_id <> v_actor
                     limit 1
                 )
                 else c.avatar_url
             end as computed_avatar,
+
             mc.last_read_at
+
         from my_convs mc
-        join public.conversations c on c.id = mc.conversation_id
+        join public.conversations c
+          on c.id = mc.conversation_id
     ),
+
     last_msgs as (
         select distinct on (msg.conversation_id)
             msg.conversation_id,
@@ -1143,20 +1523,29 @@ begin
             msg.type,
             msg.created_at
         from public.messages msg
-        join my_convs mc on mc.conversation_id = msg.conversation_id
-        order by msg.conversation_id, msg.created_at desc
+        join my_convs mc
+          on mc.conversation_id = msg.conversation_id
+        order by
+            msg.conversation_id,
+            msg.created_at desc
     ),
+
     unreads as (
-        select 
+        select
             msg.conversation_id,
             count(*) as unread_count
         from public.messages msg
-        join my_convs mc on mc.conversation_id = msg.conversation_id
-        where msg.sender_id != v_actor 
-          and (mc.last_read_at is null or msg.created_at > mc.last_read_at)
+        join my_convs mc
+          on mc.conversation_id = msg.conversation_id
+        where msg.sender_id <> v_actor
+          and (
+              mc.last_read_at is null
+              or msg.created_at > mc.last_read_at
+          )
         group by msg.conversation_id
     )
-    select 
+
+    select
         cd.id as conversation_id,
         cd.type,
         coalesce(cd.computed_title, 'Trò chuyện') as title,
@@ -1165,10 +1554,27 @@ begin
         lm.type as last_message_type,
         lm.created_at as last_message_at,
         coalesce(u.unread_count, 0) as unread_count
+
     from conv_details cd
-    left join last_msgs lm on lm.conversation_id = cd.id
-    left join unreads u on u.conversation_id = cd.id
-    order by coalesce(lm.created_at, '1970-01-01'::timestamptz) desc;
+
+    left join last_msgs lm
+      on lm.conversation_id = cd.id
+
+    left join unreads u
+      on u.conversation_id = cd.id
+
+    where
+        cd.type <> 'direct'
+        or public.direct_chat_available(
+            cd.id,
+            v_actor
+        )
+
+    order by coalesce(
+        lm.created_at,
+        '1970-01-01'::timestamptz
+    ) desc;
+
 end;
 $$;
 
@@ -1192,7 +1598,7 @@ begin
 end;
 $$;
 
--- Gửi tin nhắn mới (text hoặc image)
+-- Gửi tin nhắn mới (text hoặc image, chặn nếu direct chat bị block)
 drop function if exists public.send_chat_message(uuid, text, text, text);
 drop function if exists public.send_chat_message;
 
@@ -1210,23 +1616,62 @@ as $$
 declare
     v_sender_id uuid := auth.uid();
     v_msg record;
+    v_conversation_type text;
 begin
     if v_sender_id is null then
-        raise exception 'not authenticated' using errcode = '42501';
+        raise exception 'not authenticated'
+            using errcode = '42501';
     end if;
 
-    if not public.is_conversation_member(p_conversation_id, v_sender_id) then
-        raise exception 'user is not a member of this conversation' using errcode = '42501';
+    -- Người gửi phải là thành viên
+    if not public.is_conversation_member(
+        p_conversation_id,
+        v_sender_id
+    ) then
+        raise exception 'user is not a member of this conversation'
+            using errcode = '42501';
     end if;
 
-    if p_type = 'text' and (p_content is null or btrim(p_content) = '') then
-        raise exception 'content cannot be empty for text message' using errcode = '22023';
+    select c.type
+    into v_conversation_type
+    from public.conversations c
+    where c.id = p_conversation_id;
+
+    if not found then
+        raise exception 'conversation not found'
+            using errcode = 'P0002';
     end if;
 
-    if p_type = 'image' and (p_file_url is null or btrim(p_file_url) = '') then
-        raise exception 'file_url cannot be empty for image message' using errcode = '22023';
+    -- Chỉ kiểm tra block với direct chat. Group chat vẫn hoạt động bình thường.
+    if v_conversation_type = 'direct'
+       and not public.direct_chat_available(
+           p_conversation_id,
+           v_sender_id
+       ) then
+        raise exception 'direct conversation unavailable'
+            using errcode = '42501';
     end if;
 
+    -- Kiểm tra nội dung tin nhắn
+    if coalesce(p_type, 'text') = 'text'
+       and (
+           p_content is null
+           or btrim(p_content) = ''
+       ) then
+        raise exception 'content cannot be empty for text message'
+            using errcode = '22023';
+    end if;
+
+    if coalesce(p_type, 'text') = 'image'
+       and (
+           p_file_url is null
+           or btrim(p_file_url) = ''
+       ) then
+        raise exception 'file_url cannot be empty for image message'
+            using errcode = '22023';
+    end if;
+
+    -- Thêm tin nhắn
     insert into public.messages (
         id,
         conversation_id,
@@ -1249,9 +1694,11 @@ begin
     )
     returning * into v_msg;
 
+    -- Cập nhật trạng thái đã đọc cho người gửi
     update public.conversation_members
     set last_read_at = now()
-    where conversation_id = p_conversation_id and user_id = v_sender_id;
+    where conversation_id = p_conversation_id
+      and user_id = v_sender_id;
 
     return to_jsonb(v_msg);
 end;
@@ -2472,6 +2919,8 @@ create policy notifications_no_client_send on realtime.messages as restrictive f
 -- Keep unified-search normalizer grants (index expressions on posts/profiles/subjects/
 -- post_files call them as the writing user). Earlier sections revoke every
 -- studyhub_private function; see migration 20261107090000_restore_search_norm_grants.
+grant usage on schema studyhub_private to authenticated, service_role;
+
 do $$
 begin
   if to_regprocedure('studyhub_private.search_norm(text)') is not null then
