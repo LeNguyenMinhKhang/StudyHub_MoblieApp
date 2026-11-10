@@ -10,8 +10,10 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import kotlinx.coroutines.launch
 import com.doan.studyhub.core.data.local.AvatarMode
 import com.doan.studyhub.core.data.local.AvatarSelection
 import com.doan.studyhub.core.data.model.PostDetail
@@ -35,13 +37,25 @@ class PostAdapter(
     private val onLikeClick: ((
         PostDetail,
         (Result<Boolean>) -> Unit
-    ) -> Unit)? = null
+    ) -> Unit)? = null,
+
+    // Callback xử lý Bookmark từ Fragment
+    private val onBookmarkClick: ((
+        PostDetail,
+        (Result<Boolean>) -> Unit
+    ) -> Unit)? = null,
+
+    // Callback khi click vào Hashtag chip
+    private val onHashtagClick: ((String) -> Unit)? = null
 ) : RecyclerView.Adapter<PostAdapter.ViewHolder>() {
 
     private val posts = mutableListOf<PostDetail>()
 
     // Những bài viết đang gửi yêu cầu Like/Unlike
     private val pendingLikePostIds = mutableSetOf<String>()
+
+    // Những bài viết đang gửi yêu cầu Bookmark
+    private val pendingBookmarkPostIds = mutableSetOf<String>()
 
     fun submitList(newList: List<PostDetail>) {
         posts.clear()
@@ -103,6 +117,25 @@ class PostAdapter(
         posts[index] = oldPost.copy(
             likeCount = newLikeCount,
             isLikedByCurrentUser = isLiked
+        )
+
+        notifyItemChanged(index)
+    }
+
+    // Cập nhật trạng thái Bookmark sau khi Supabase trả kết quả
+    fun updatePostBookmark(
+        postId: String,
+        isSaved: Boolean
+    ) {
+        val index = posts.indexOfFirst {
+            it.post.id == postId
+        }
+
+        if (index == -1) return
+
+        val oldPost = posts[index]
+        posts[index] = oldPost.copy(
+            isSavedByCurrentUser = isSaved
         )
 
         notifyItemChanged(index)
@@ -249,6 +282,30 @@ class PostAdapter(
             binding.tvPostTitle.text = post.title
             binding.tvPostContent.text = post.content ?: ""
             binding.tvPostContent.isVisible = !post.content.isNullOrBlank()
+
+            // Hashtags
+            if (item.hashtags.isNotEmpty()) {
+                binding.chipGroupPostHashtags.isVisible = true
+                binding.chipGroupPostHashtags.removeAllViews()
+                val context = binding.root.context
+                item.hashtags.forEach { tag ->
+                    val chip = com.google.android.material.chip.Chip(context).apply {
+                        text = "#$tag"
+                        isClickable = true
+                        isCheckable = false
+                        textSize = 12f
+                        setChipBackgroundColorResource(R.color.surface_variant)
+                        setTextColor(ContextCompat.getColor(context, R.color.primary))
+                        setOnClickListener {
+                            onHashtagClick?.invoke(tag)
+                        }
+                    }
+                    binding.chipGroupPostHashtags.addView(chip)
+                }
+            } else {
+                binding.chipGroupPostHashtags.isVisible = false
+                binding.chipGroupPostHashtags.removeAllViews()
+            }
 
             // Image Preview
             val imageFile = item.files.firstOrNull { file ->
@@ -418,17 +475,82 @@ class PostAdapter(
                 onPostClick(item)
             }
 
-            // Share
-            binding.btnPostShare.setOnClickListener {
-                Toast.makeText(
-                    fragment.requireContext(),
-                    "Đã sao chép liên kết bài viết",
-                    Toast.LENGTH_SHORT
-                ).show()
+            // Bookmark
+            val isSaved = item.isSavedByCurrentUser
+            updateBookmarkUi(isSaved)
+
+            binding.btnPostBookmark.setOnClickListener {
+                if (postId.isBlank()) return@setOnClickListener
+                if (pendingBookmarkPostIds.contains(postId)) return@setOnClickListener
+
+                val bookmarkCallback = onBookmarkClick
+                if (bookmarkCallback == null) {
+                    pendingBookmarkPostIds.add(postId)
+                    val targetSaved = !item.isSavedByCurrentUser
+                    updateBookmarkUi(targetSaved)
+
+                    fragment.lifecycleScope.launch {
+                        try {
+                            val result = com.doan.studyhub.core.data.repository.PostRepository().toggleSavePost(postId)
+                            updatePostBookmark(postId, result)
+                        } catch (e: Exception) {
+                            updateBookmarkUi(item.isSavedByCurrentUser)
+                            Toast.makeText(
+                                fragment.requireContext(),
+                                e.message ?: "Không thể lưu bài viết.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } finally {
+                            pendingBookmarkPostIds.remove(postId)
+                        }
+                    }
+                    return@setOnClickListener
+                }
+
+                pendingBookmarkPostIds.add(postId)
+                val targetSaved = !item.isSavedByCurrentUser
+                updateBookmarkUi(targetSaved)
+
+                bookmarkCallback(item) { result ->
+                    pendingBookmarkPostIds.remove(postId)
+                    result.onSuccess { newSaved ->
+                        updatePostBookmark(postId, newSaved)
+                    }.onFailure { error ->
+                        updateBookmarkUi(item.isSavedByCurrentUser)
+                        Toast.makeText(
+                            fragment.requireContext(),
+                            error.message ?: "Không thể thực hiện lưu bài viết.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
             }
 
             itemView.setOnClickListener {
                 onPostClick(item)
+            }
+        }
+
+        private fun updateBookmarkUi(isSaved: Boolean) {
+            val context = fragment.requireContext()
+            if (isSaved) {
+                binding.imgPostBookmarkIcon.setImageResource(R.drawable.ic_bookmark_filled)
+                binding.imgPostBookmarkIcon.setColorFilter(
+                    ContextCompat.getColor(context, R.color.primary)
+                )
+                binding.tvPostBookmarkLabel.setTextColor(
+                    ContextCompat.getColor(context, R.color.primary)
+                )
+                binding.tvPostBookmarkLabel.text = "Đã lưu"
+            } else {
+                binding.imgPostBookmarkIcon.setImageResource(R.drawable.ic_bookmark_outline)
+                binding.imgPostBookmarkIcon.setColorFilter(
+                    ContextCompat.getColor(context, R.color.text_secondary)
+                )
+                binding.tvPostBookmarkLabel.setTextColor(
+                    ContextCompat.getColor(context, R.color.text_secondary)
+                )
+                binding.tvPostBookmarkLabel.text = "Lưu"
             }
         }
 

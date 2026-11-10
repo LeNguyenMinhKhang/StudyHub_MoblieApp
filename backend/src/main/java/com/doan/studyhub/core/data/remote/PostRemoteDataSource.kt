@@ -4,16 +4,22 @@ package com.doan.studyhub.core.data.remote
 import com.doan.studyhub.core.data.SupabaseClient
 import com.doan.studyhub.core.data.model.Comment
 import com.doan.studyhub.core.data.model.CreateLikeRequest
+import com.doan.studyhub.core.data.model.Hashtag
+import com.doan.studyhub.core.data.model.HashtagUtils
 import com.doan.studyhub.core.data.model.Like
 import com.doan.studyhub.core.data.model.Post
 import com.doan.studyhub.core.data.model.PostDetail
 import com.doan.studyhub.core.data.model.PostFile
+import com.doan.studyhub.core.data.model.PostHashtag
 import com.doan.studyhub.core.data.model.Profile
+import com.doan.studyhub.core.data.model.SavedPost
 import com.doan.studyhub.core.data.model.Subject
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.util.UUID
 
 class PostRemoteDataSource {
@@ -255,6 +261,60 @@ class PostRemoteDataSource {
             emptyMap()
         }
 
+        // Lấy trạng thái lưu bài viết của người dùng hiện tại
+        val savedPostIds = if (!currentUserId.isNullOrBlank() && postIds.isNotEmpty()) {
+            try {
+                postgrest["saved_posts"]
+                    .select {
+                        filter {
+                            eq("user_id", currentUserId)
+                            isIn("post_id", postIds)
+                        }
+                    }
+                    .decodeList<SavedPost>()
+                    .map { it.postId }
+                    .toSet()
+            } catch (_: Exception) {
+                emptySet()
+            }
+        } else {
+            emptySet()
+        }
+
+        // Lấy danh sách hashtag liên kết với các bài viết
+        val hashtagsByPostId = if (postIds.isNotEmpty()) {
+            try {
+                val postHashtags = postgrest["post_hashtags"]
+                    .select {
+                        filter {
+                            isIn("post_id", postIds)
+                        }
+                    }
+                    .decodeList<PostHashtag>()
+
+                val hashtagIds = postHashtags.map { it.hashtagId }.distinct()
+                val hashtagMap = if (hashtagIds.isNotEmpty()) {
+                    postgrest["hashtags"]
+                        .select {
+                            filter {
+                                isIn("id", hashtagIds)
+                            }
+                        }
+                        .decodeList<Hashtag>()
+                        .associate { (it.id ?: "") to it.name }
+                } else {
+                    emptyMap()
+                }
+
+                postHashtags.groupBy({ it.postId }, { hashtagMap[it.hashtagId] ?: "" })
+                    .mapValues { entry -> entry.value.filter { it.isNotBlank() } }
+            } catch (_: Exception) {
+                emptyMap()
+            }
+        } else {
+            emptyMap()
+        }
+
         // Kết hợp dữ liệu bài viết
         return posts.map { post ->
             val (likeCount, isLiked) = post.id
@@ -268,7 +328,9 @@ class PostRemoteDataSource {
                 files = files[post.id].orEmpty(),
                 likeCount = likeCount,
                 isLikedByCurrentUser = isLiked,
-                commentCount = commentCounts[post.id] ?: 0
+                commentCount = commentCounts[post.id] ?: 0,
+                isSavedByCurrentUser = post.id?.let { savedPostIds.contains(it) } ?: false,
+                hashtags = post.id?.let { hashtagsByPostId[it] }.orEmpty()
             )
         }
     }
@@ -429,16 +491,62 @@ class PostRemoteDataSource {
 
     // Tạo bài viết
     suspend fun createPost(
-        request: com.doan.studyhub.core.data.model.CreatePostRequest
+        request: com.doan.studyhub.core.data.model.CreatePostRequest,
+        hashtags: List<String> = emptyList()
     ): Post {
         ensureProfileExists(request.authorId)
 
-        return postgrest["posts"]
+        val createdPost = postgrest["posts"]
             .insert(request) {
                 select()
             }
             .decodeList<Post>()
             .first()
+
+        val postId = createdPost.id
+        if (!postId.isNullOrBlank() && hashtags.isNotEmpty()) {
+            attachHashtags(postId, hashtags)
+        }
+
+        return createdPost
+    }
+
+    suspend fun attachHashtags(postId: String, rawTags: List<String>) {
+        val normalized = HashtagUtils.normalizeList(rawTags)
+        if (normalized.isEmpty()) return
+
+        for (tag in normalized) {
+            try {
+                val existing = postgrest["hashtags"]
+                    .select {
+                        filter {
+                            eq("name", tag)
+                        }
+                    }
+                    .decodeList<Hashtag>()
+                    .firstOrNull()
+
+                val hashtagId = existing?.id ?: run {
+                    postgrest["hashtags"]
+                        .insert(Hashtag(name = tag)) {
+                            select()
+                        }
+                        .decodeList<Hashtag>()
+                        .firstOrNull()?.id
+                }
+
+                if (!hashtagId.isNullOrBlank()) {
+                    postgrest["post_hashtags"].insert(
+                        PostHashtag(
+                            postId = postId,
+                            hashtagId = hashtagId
+                        )
+                    )
+                }
+            } catch (_: Exception) {
+                // Bỏ qua lỗi conflict tag
+            }
+        }
     }
 
     // Upload file bài viết
@@ -613,5 +721,113 @@ class PostRemoteDataSource {
 
             true
         }
+    }
+
+    // Toggle lưu / bỏ lưu bài viết
+    suspend fun toggleSavePost(postId: String): Boolean {
+        val currentUserId = SupabaseClient.client.auth
+            .currentUserOrNull()?.id
+            ?: throw IllegalStateException("Bạn cần đăng nhập để lưu bài viết.")
+
+        return try {
+            val response = postgrest.rpc(
+                function = "toggle_saved_post",
+                parameters = buildJsonObject {
+                    put("p_post_id", postId)
+                }
+            )
+            response.data.trim().toBoolean()
+        } catch (e: Exception) {
+            // Fallback sang truy vấn bảng nếu RPC chưa sẵn sàng
+            val existing = postgrest["saved_posts"]
+                .select {
+                    filter {
+                        eq("user_id", currentUserId)
+                        eq("post_id", postId)
+                    }
+                }
+                .decodeList<SavedPost>()
+                .firstOrNull()
+
+            if (existing != null) {
+                postgrest["saved_posts"].delete {
+                    filter {
+                        eq("user_id", currentUserId)
+                        eq("post_id", postId)
+                    }
+                }
+                false
+            } else {
+                postgrest["saved_posts"].insert(
+                    SavedPost(userId = currentUserId, postId = postId)
+                )
+                true
+            }
+        }
+    }
+
+    // Lấy danh sách bài viết đã lưu của người dùng hiện tại
+    suspend fun getSavedPosts(
+        limit: Long? = null,
+        offset: Long? = null
+    ): List<PostDetail> {
+        val currentUserId = SupabaseClient.client.auth.currentUserOrNull()?.id
+            ?: return emptyList()
+
+        val savedItems = postgrest["saved_posts"]
+            .select {
+                filter {
+                    eq("user_id", currentUserId)
+                }
+                order(column = "created_at", order = Order.DESCENDING)
+                if (limit != null && offset != null) {
+                    range(from = offset, to = offset + limit - 1)
+                } else if (limit != null) {
+                    limit(limit)
+                }
+            }
+            .decodeList<SavedPost>()
+
+        val postIds = savedItems.map { it.postId }.distinct()
+        if (postIds.isEmpty()) return emptyList()
+
+        val rawPosts = postgrest["posts"]
+            .select {
+                filter {
+                    isIn("id", postIds)
+                }
+            }
+            .decodeList<Post>()
+
+        val postMap = rawPosts.associateBy { it.id }
+        val orderedPosts = postIds.mapNotNull { postMap[it] }
+
+        val friendIds = try {
+            FriendshipRemoteDataSource()
+                .list(
+                    com.doan.studyhub.core.data.model.FriendshipListKind.FRIENDS,
+                    null,
+                    100
+                )
+                .items
+                .map { it.peer.id }
+                .toSet()
+        } catch (_: Exception) {
+            emptySet()
+        }
+
+        val visiblePosts = orderedPosts.filter { post ->
+            val (_, visibility) = com.doan.studyhub.core.data.model.PostTypeUtils.parse(post.type)
+            when (visibility) {
+                com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PUBLIC -> true
+                com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_FRIENDS ->
+                    post.authorId == currentUserId || friendIds.contains(post.authorId)
+                com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PRIVATE ->
+                    post.authorId == currentUserId
+                else -> true
+            }
+        }
+
+        return enrichPosts(visiblePosts)
     }
 }

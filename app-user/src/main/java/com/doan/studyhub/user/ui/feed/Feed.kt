@@ -182,6 +182,35 @@ class Feed : Fragment() {
                         }
                     }
                 }
+            },
+
+            onBookmarkClick = { postDetail, onResult ->
+                val postId = postDetail.post.id
+                if (postId.isNullOrBlank()) {
+                    onResult(
+                        Result.failure(
+                            IllegalStateException("Không tìm thấy ID bài viết.")
+                        )
+                    )
+                } else {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        try {
+                            val isSaved = postRepository.toggleSavePost(postId)
+                            onResult(Result.success(isSaved))
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            onResult(Result.failure(e))
+                        }
+                    }
+                }
+            },
+
+            onHashtagClick = { tag ->
+                (parentFragment as? Home)?.openSearch(
+                    query = "#$tag",
+                    tab = com.doan.studyhub.core.data.model.SearchTab.POSTS
+                )
             }
         )
 
@@ -200,6 +229,10 @@ class Feed : Fragment() {
 
         binding.swipeRefreshFeed.setOnRefreshListener {
             loadFeed(isRefresh = true)
+        }
+
+        binding.appBarFeed.addOnOffsetChangedListener { _, verticalOffset ->
+            binding.swipeRefreshFeed.isEnabled = (verticalOffset == 0)
         }
     }
 
@@ -467,6 +500,11 @@ class Feed : Fragment() {
             )
             .addToBackStack(null)
             .commit()
+    }
+
+    fun scrollToTop() {
+        _binding?.appBarFeed?.setExpanded(true, true)
+        _binding?.rvFeedPosts?.smoothScrollToPosition(0)
     }
 
     override fun onDestroyView() {

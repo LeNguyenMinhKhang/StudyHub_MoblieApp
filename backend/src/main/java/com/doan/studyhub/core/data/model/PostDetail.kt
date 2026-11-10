@@ -17,5 +17,11 @@ data class PostDetail(
     val isLikedByCurrentUser: Boolean = false,
 
     // Tổng số bình luận và câu trả lời
-    val commentCount: Int = 0
+    val commentCount: Int = 0,
+
+    // Trạng thái lưu bài viết của người dùng hiện tại
+    val isSavedByCurrentUser: Boolean = false,
+
+    // Danh sách hashtag gắn kèm
+    val hashtags: List<String> = emptyList()
 )

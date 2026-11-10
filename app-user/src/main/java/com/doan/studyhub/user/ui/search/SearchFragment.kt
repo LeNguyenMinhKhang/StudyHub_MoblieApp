@@ -59,6 +59,22 @@ class SearchFragment : Fragment() {
         setupAdapters()
         binding.rvSearch.layoutManager = LinearLayoutManager(requireContext())
         setupTabs()
+
+        if (state == null) {
+            val initialTabName = arguments?.getString(ARG_TAB)
+            if (!initialTabName.isNullOrBlank()) {
+                try {
+                    val tab = SearchTab.valueOf(initialTabName)
+                    viewModel.selectTab(tab)
+                } catch (_: Exception) {}
+            }
+            val initialQuery = arguments?.getString(ARG_QUERY)
+            if (!initialQuery.isNullOrBlank()) {
+                binding.edtSearchQuery.setText(initialQuery)
+                viewModel.submit(initialQuery)
+            }
+        }
+
         setupInput(firstOpen = state == null && viewModel.uiState.value.query.isEmpty())
 
         binding.btnSearchBack.setOnClickListener {
@@ -132,6 +148,22 @@ class SearchFragment : Fragment() {
                         onResult(runCatching { postRepository.toggleLike(postId) })
                     }
                 }
+            },
+            onBookmarkClick = { detail, onResult ->
+                val postId = detail.post.id
+                if (postId.isNullOrBlank()) {
+                    onResult(Result.failure(IllegalStateException("Không tìm thấy ID bài viết.")))
+                } else {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        onResult(runCatching { postRepository.toggleSavePost(postId) })
+                    }
+                }
+            },
+            onHashtagClick = { tag ->
+                val hashtagQuery = "#$tag"
+                binding.edtSearchQuery.setText(hashtagQuery)
+                viewModel.selectTab(SearchTab.POSTS)
+                viewModel.submit(hashtagQuery)
             }
         )
     }
@@ -245,5 +277,19 @@ class SearchFragment : Fragment() {
         binding.rvSearch.adapter = null
         _binding = null
         super.onDestroyView()
+    }
+
+    companion object {
+        private const val ARG_QUERY = "arg_search_query"
+        private const val ARG_TAB = "arg_search_tab"
+
+        fun newInstance(query: String? = null, tab: SearchTab? = null): SearchFragment {
+            return SearchFragment().apply {
+                arguments = Bundle().apply {
+                    if (query != null) putString(ARG_QUERY, query)
+                    if (tab != null) putString(ARG_TAB, tab.name)
+                }
+            }
+        }
     }
 }

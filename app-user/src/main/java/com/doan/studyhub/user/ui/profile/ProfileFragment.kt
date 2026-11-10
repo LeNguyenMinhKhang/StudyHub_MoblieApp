@@ -293,6 +293,39 @@ class ProfileFragment : Fragment() {
                         }
                     }
                 }
+            },
+
+            onBookmarkClick = { detail, onResult ->
+                val postId = detail.post.id
+                if (postId.isNullOrBlank()) {
+                    onResult(
+                        Result.failure(
+                            IllegalStateException("Không tìm thấy ID bài viết.")
+                        )
+                    )
+                } else {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        try {
+                            val isSaved = postRepository.toggleSavePost(postId)
+                            onResult(Result.success(isSaved))
+                            if (selectedProfileTab == 1 && !isSaved) {
+                                postAdapter.removePost(postId)
+                                binding.tvProfilePostsEmpty.isVisible = postAdapter.itemCount == 0
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            onResult(Result.failure(e))
+                        }
+                    }
+                }
+            },
+
+            onHashtagClick = { tag ->
+                (parentFragment as? Home)?.openSearch(
+                    query = "#$tag",
+                    tab = com.doan.studyhub.core.data.model.SearchTab.POSTS
+                )
             }
         )
 
@@ -321,12 +354,41 @@ class ProfileFragment : Fragment() {
             viewModel.uiState.value.profile?.id ?: targetId
 
         if (!activeProfileId.isNullOrBlank()) {
+            loadPostsForSelectedTab()
+        }
+    }
+
+    private var selectedProfileTab: Int = 0
+    private var loadPostsJob: Job? = null
+    private var postsLoadedFor: String? = null
+
+    private fun loadPostsForSelectedTab() {
+        val activeProfileId = viewModel.uiState.value.profile?.id ?: targetId
+        if (activeProfileId.isNullOrBlank()) return
+
+        if (selectedProfileTab == 1) {
+            loadSavedPosts()
+        } else {
             loadUserPosts(activeProfileId)
         }
     }
 
-    private var loadPostsJob: Job? = null
-    private var postsLoadedFor: String? = null
+    private fun loadSavedPosts() {
+        loadPostsJob?.cancel()
+
+        loadPostsJob = viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val saved = postRepository.getSavedPosts()
+                postAdapter.submitList(saved)
+                binding.tvProfilePostsEmpty.text = "Bạn chưa lưu bài viết nào."
+                binding.tvProfilePostsEmpty.isVisible = saved.isEmpty()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("ProfileFragment", "Error loading saved posts", e)
+            }
+        }
+    }
 
     private fun loadUserPosts(userId: String) {
         val cleanUserId = userId.trim()
@@ -342,6 +404,7 @@ class ProfileFragment : Fragment() {
                 )
 
                 postAdapter.submitList(posts)
+                binding.tvProfilePostsEmpty.text = "Chưa có bài viết nào."
                 binding.tvProfilePostsEmpty.isVisible = posts.isEmpty()
 
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -445,8 +508,30 @@ class ProfileFragment : Fragment() {
 
             postAdapter.updateCurrentUserId(currentLoggedUserId)
 
+            if (state.isOwner) {
+                binding.tvProfilePostsHeader.isVisible = false
+                binding.tabLayoutProfile.isVisible = true
+                if (binding.tabLayoutProfile.tabCount == 0) {
+                    binding.tabLayoutProfile.addTab(binding.tabLayoutProfile.newTab().setText("Bài viết của tôi"))
+                    binding.tabLayoutProfile.addTab(binding.tabLayoutProfile.newTab().setText("Đã lưu"))
+                    binding.tabLayoutProfile.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
+                        override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
+                            selectedProfileTab = tab?.position ?: 0
+                            loadPostsForSelectedTab()
+                        }
+                        override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+                        override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
+                            loadPostsForSelectedTab()
+                        }
+                    })
+                }
+            } else {
+                binding.tabLayoutProfile.isVisible = false
+                binding.tvProfilePostsHeader.isVisible = true
+            }
+
             if (postsLoadedFor != profile.id) {
-                loadUserPosts(profile.id)
+                loadPostsForSelectedTab()
             }
         }
     }
