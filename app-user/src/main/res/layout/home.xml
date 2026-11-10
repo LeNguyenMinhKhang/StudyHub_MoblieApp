@@ -67,6 +67,9 @@
                     android:layout_marginStart="8dp"
                     android:layout_marginEnd="8dp"
                     android:adjustViewBounds="true"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="StudyHub Logo"
                     android:scaleType="fitStart"
                     android:src="@drawable/logo2"
@@ -468,8 +471,8 @@
                             android:layout_width="18dp"
                             android:layout_height="18dp"
                             android:layout_gravity="center"
-                            android:contentDescription="Bài viết"
-                            android:src="@drawable/ic_assignment"
+                            android:contentDescription="Bài viết đã lưu"
+                            android:src="@drawable/ic_bookmark_filled"
                             app:tint="@color/primary" />
                     </FrameLayout>
 
@@ -479,7 +482,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="14dp"
                         android:layout_weight="1"
-                        android:text="Bài viết &amp; Đã lưu"
+                        android:text="Bài viết đã lưu"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp" />
 

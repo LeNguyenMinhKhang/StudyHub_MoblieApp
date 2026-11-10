@@ -99,10 +99,10 @@ class Home : Fragment() {
     }
 
     // Opens search on top of the current screen; back returns to that screen.
-    private fun openSearch() {
+    fun openSearch(query: String? = null, tab: com.doan.studyhub.core.data.model.SearchTab? = null) {
         val current = childFragmentManager.findFragmentById(R.id.containerMain)
-        if (current is SearchFragment) return
-        if (current is EditProfileFragment) current.requestLeave { openDetail(SearchFragment()) } else openDetail(SearchFragment())
+        val fragment = SearchFragment.newInstance(query, tab)
+        if (current is EditProfileFragment) current.requestLeave { openDetail(fragment) } else openDetail(fragment)
     }
 
     fun closeDetail() {
@@ -167,6 +167,16 @@ class Home : Fragment() {
         binding.drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
             override fun onDrawerOpened(drawerView: View) = notifications.refresh()
         })
+
+        // Logo Click: Navigate to Home/Feed (or scroll to top if already on Feed)
+        binding.imgHeaderLogo.setOnClickListener {
+            val current = childFragmentManager.findFragmentById(R.id.containerMain)
+            if (current is Feed && childFragmentManager.backStackEntryCount == 0) {
+                current.scrollToTop()
+            } else {
+                requestRoot(Feed())
+            }
+        }
 
         // Top Bar Quick Access Action Icons
         binding.btnHeaderSearch.setOnClickListener { openSearch() }

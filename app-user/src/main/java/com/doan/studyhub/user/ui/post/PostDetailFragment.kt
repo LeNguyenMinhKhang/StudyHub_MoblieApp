@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -49,6 +50,7 @@ class PostDetailFragment : Fragment() {
     private var postOwnerId: String? = null
 
     private val commentRootIdById = mutableMapOf<String, String>()
+    private var isSavedPost: Boolean = false
 
     companion object {
         private const val ARG_POST_ID = "post_id"
@@ -249,6 +251,39 @@ class PostDetailFragment : Fragment() {
         binding.tvDetailTitle.text = post.title
         binding.tvDetailContent.text = post.content ?: ""
 
+        // Hashtags
+        if (detail.hashtags.isNotEmpty()) {
+            binding.chipGroupDetailHashtags.isVisible = true
+            binding.chipGroupDetailHashtags.removeAllViews()
+            detail.hashtags.forEach { tag ->
+                val chip = com.google.android.material.chip.Chip(requireContext()).apply {
+                    text = "#$tag"
+                    isClickable = true
+                    isCheckable = false
+                    textSize = 12f
+                    setChipBackgroundColorResource(R.color.surface_variant)
+                    setTextColor(ContextCompat.getColor(context, R.color.primary))
+                    setOnClickListener {
+                        (parentFragment as? Home)?.openSearch(
+                            query = "#$tag",
+                            tab = com.doan.studyhub.core.data.model.SearchTab.POSTS
+                        )
+                    }
+                }
+                binding.chipGroupDetailHashtags.addView(chip)
+            }
+        } else {
+            binding.chipGroupDetailHashtags.isVisible = false
+            binding.chipGroupDetailHashtags.removeAllViews()
+        }
+
+        // Bookmark
+        isSavedPost = detail.isSavedByCurrentUser
+        updateBookmarkIcon(isSavedPost)
+        binding.btnBookmarkPostDetail.setOnClickListener {
+            toggleBookmark()
+        }
+
         AvatarImageLoader.show(
             fragment = this,
             view = binding.imgDetailAuthorAvatar,
@@ -335,6 +370,46 @@ class PostDetailFragment : Fragment() {
 
             binding.btnDeletePostDetail.setOnClickListener {
                 confirmDeletePost()
+            }
+        }
+    }
+
+    private fun updateBookmarkIcon(isSaved: Boolean) {
+        if (isSaved) {
+            binding.btnBookmarkPostDetail.setImageResource(R.drawable.ic_bookmark_filled)
+            binding.btnBookmarkPostDetail.setColorFilter(
+                ContextCompat.getColor(requireContext(), R.color.primary)
+            )
+        } else {
+            binding.btnBookmarkPostDetail.setImageResource(R.drawable.ic_bookmark_outline)
+            binding.btnBookmarkPostDetail.setColorFilter(
+                ContextCompat.getColor(requireContext(), R.color.text_secondary)
+            )
+        }
+    }
+
+    private fun toggleBookmark() {
+        if (postId.isBlank()) return
+        val target = !isSavedPost
+        updateBookmarkIcon(target)
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val newStatus = postRepository.toggleSavePost(postId)
+                isSavedPost = newStatus
+                updateBookmarkIcon(newStatus)
+                Toast.makeText(
+                    requireContext(),
+                    if (newStatus) "Đã lưu bài viết" else "Đã bỏ lưu bài viết",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } catch (e: Exception) {
+                updateBookmarkIcon(isSavedPost)
+                Toast.makeText(
+                    requireContext(),
+                    e.message ?: "Không thể thực hiện lưu bài viết",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }

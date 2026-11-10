@@ -36,12 +36,26 @@ class PostRepository(
         return remoteDataSource.toggleLike(postId)
     }
 
+    // Lưu hoặc bỏ lưu bài viết
+    suspend fun toggleSavePost(postId: String): Boolean {
+        return remoteDataSource.toggleSavePost(postId)
+    }
+
+    // Lấy danh sách bài viết đã lưu
+    suspend fun getSavedPosts(
+        limit: Long? = null,
+        offset: Long? = null
+    ): List<PostDetail> {
+        return remoteDataSource.getSavedPosts(limit, offset)
+    }
+
     suspend fun createPost(
         authorId: String,
         subjectId: String?,
         type: String?,
         title: String,
-        content: String?
+        content: String?,
+        hashtags: List<String> = emptyList()
     ): Post {
         val request = com.doan.studyhub.core.data.model.CreatePostRequest(
             authorId = authorId,
@@ -50,7 +64,7 @@ class PostRepository(
             title = title,
             content = content
         )
-        return remoteDataSource.createPost(request)
+        return remoteDataSource.createPost(request, hashtags)
     }
 
     suspend fun uploadPostFile(

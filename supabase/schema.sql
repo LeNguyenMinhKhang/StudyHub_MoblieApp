@@ -470,6 +470,58 @@ drop policy if exists "saved_posts_delete_own" on public.saved_posts;
 create policy "saved_posts_delete_own" on public.saved_posts
   for delete using (auth.uid() = user_id);
 
+create index if not exists post_hashtags_post_id_idx on public.post_hashtags(post_id);
+create index if not exists post_hashtags_hashtag_id_idx on public.post_hashtags(hashtag_id);
+create index if not exists saved_posts_user_id_idx on public.saved_posts(user_id);
+create index if not exists saved_posts_post_id_idx on public.saved_posts(post_id);
+
+create or replace function public.toggle_saved_post(p_post_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_user_id uuid := auth.uid();
+    v_exists boolean;
+begin
+    if v_user_id is null then
+        raise exception 'not authenticated' using errcode = '42501';
+    end if;
+
+    if p_post_id is null then
+        raise exception 'invalid post id' using errcode = '22023';
+    end if;
+
+    if not exists (
+        select 1 from public.posts p
+        where p.id = p_post_id
+    ) then
+        raise exception 'post not found' using errcode = 'P0002';
+    end if;
+
+    select exists (
+        select 1 from public.saved_posts sp
+        where sp.user_id = v_user_id and sp.post_id = p_post_id
+    ) into v_exists;
+
+    if v_exists then
+        delete from public.saved_posts sp
+        where sp.user_id = v_user_id and sp.post_id = p_post_id;
+        return false;
+    else
+        insert into public.saved_posts (user_id, post_id)
+        values (v_user_id, p_post_id)
+        on conflict (user_id, post_id) do nothing;
+        return true;
+    end if;
+end;
+$$;
+
+revoke all on function public.toggle_saved_post(uuid) from public, anon;
+grant execute on function public.toggle_saved_post(uuid) to authenticated;
+
+
 -- =====================================================================
 -- 11. friendships (phân hệ 7.1, 7.2)
 -- =====================================================================
@@ -1960,13 +2012,17 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = ''
-set pg_trgm.word_similarity_threshold = '0.5'
 as $$
 declare
     v_actor uuid := studyhub_private.friend_actor();
     v_q text; v_like text; v_raw text; v_size integer; v_contains text; v_fuzzy boolean;
     v_result jsonb;
 begin
+    begin
+        perform set_config('pg_trgm.word_similarity_threshold', '0.5', true);
+    exception when others then
+        null;
+    end;
     select i.q, i.q_like, i.q_raw, i.page_size into v_q, v_like, v_raw, v_size
     from studyhub_private.search_input(p_query, p_limit, p_offset) i;
     if char_length(v_q) < 2 or v_size = 0 then

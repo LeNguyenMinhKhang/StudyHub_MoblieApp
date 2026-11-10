@@ -157,6 +157,19 @@
             </LinearLayout>
 
             <!-- User Posts Section -->
+            <com.google.android.material.tabs.TabLayout
+                android:id="@+id/tabLayoutProfile"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:background="@android:color/transparent"
+                android:visibility="gone"
+                app:tabIndicatorColor="@color/primary"
+                app:tabSelectedTextColor="@color/primary"
+                app:tabTextColor="@color/text_secondary"
+                app:tabMode="fixed"
+                app:tabGravity="fill" />
+
             <TextView
                 android:id="@+id/tvProfilePostsHeader"
                 android:layout_width="match_parent"
