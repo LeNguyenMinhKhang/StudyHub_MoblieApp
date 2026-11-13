@@ -59,26 +59,17 @@
                 </FrameLayout>
 
                 <!-- StudyHub Logo -->
-                <!-- Shrinks below 112dp on narrow screens so it never overlaps the actions. -->
                 <ImageView
                     android:id="@+id/imgHeaderLogo"
-                    android:layout_width="0dp"
+                    android:layout_width="112dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
-                    android:layout_marginEnd="8dp"
                     android:adjustViewBounds="true"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="StudyHub Logo"
-                    android:scaleType="fitStart"
                     android:src="@drawable/logo2"
                     app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toStartOf="@id/layoutHeaderActions"
-                    app:layout_constraintHorizontal_bias="0"
                     app:layout_constraintStart_toEndOf="@id/btnHamburgerContainer"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:layout_constraintWidth_max="112dp" />
+                    app:layout_constraintTop_toTopOf="parent" />
 
                 <!-- Quick Action Icons on Top Bar -->
                 <LinearLayout
@@ -91,32 +82,11 @@
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintTop_toTopOf="parent">
 
-                    <!-- 0. Tìm kiếm -->
-                    <FrameLayout
-                        android:id="@+id/btnHeaderSearch"
-                        android:layout_width="38dp"
-                        android:layout_height="38dp"
-                        android:background="@drawable/bg_header_action_circle"
-                        android:clickable="true"
-                        android:contentDescription="@string/search_open"
-                        android:focusable="true"
-                        android:foreground="?attr/selectableItemBackgroundBorderless">
-
-                        <ImageView
-                            android:layout_width="19dp"
-                            android:layout_height="19dp"
-                            android:layout_gravity="center"
-                            android:importantForAccessibility="no"
-                            android:src="@drawable/ic_search"
-                            app:tint="@android:color/white" />
-                    </FrameLayout>
-
                     <!-- 1. Môn học & Tài liệu -->
                     <FrameLayout
                         android:id="@+id/btnHeaderSubject"
                         android:layout_width="38dp"
                         android:layout_height="38dp"
-                        android:layout_marginStart="6dp"
                         android:background="@drawable/bg_header_action_circle"
                         android:clickable="true"
                         android:focusable="true"
@@ -471,8 +441,8 @@
                             android:layout_width="18dp"
                             android:layout_height="18dp"
                             android:layout_gravity="center"
-                            android:contentDescription="Bài viết đã lưu"
-                            android:src="@drawable/ic_bookmark_filled"
+                            android:contentDescription="Bài viết"
+                            android:src="@drawable/ic_assignment"
                             app:tint="@color/primary" />
                     </FrameLayout>
 
@@ -482,7 +452,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="14dp"
                         android:layout_weight="1"
-                        android:text="Bài viết đã lưu"
+                        android:text="Bài viết &amp; Đã lưu"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp" />
 

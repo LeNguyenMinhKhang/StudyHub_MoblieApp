@@ -59,34 +59,5 @@
     <string name="notification_best_answer">%1$s đã chọn câu trả lời của bạn là hay nhất.</string>
     <string name="notification_group_added">%1$s đã thêm bạn vào một nhóm.</string>
     <string name="notification_new_post">%1$s đã đăng bài viết mới.</string>
-    <string name="notification_filter_all">Tất cả</string>
-    <string name="notification_filter_unread">Chưa đọc</string>
-    <string name="notification_empty_unread">Bạn đã đọc hết thông báo.</string>
-    <string name="notification_loading">Đang tải thông báo</string>
-    <string name="notification_unread_item">Chưa đọc: %1$s</string>
-    <string name="notification_window_stale">Danh sách đã dài, có thể chưa cập nhật đầy đủ.</string>
-    <string name="notification_reload_from_start">Tải lại từ đầu</string>
-    <string name="settings_title">Cài đặt</string>
-    <string name="settings_notifications_header">Thông báo trong ứng dụng</string>
-    <string name="settings_notify_friendship">Lời mời và chấp nhận kết bạn</string>
-    <string name="settings_notify_like">Lượt thích bài viết</string>
-    <string name="settings_notify_comment">Bình luận bài viết</string>
-    <string name="settings_saving">Đang lưu…</string>
-    <string name="settings_save_failed">Chưa lưu được cài đặt. Đang hiển thị cài đặt đã lưu gần nhất.</string>
     <string name="notification_generic">%1$s có hoạt động mới.</string>
-
-    <string name="search_open">Tìm kiếm</string>
-    <string name="search_back">Quay lại</string>
-    <string name="search_hint">Tìm người dùng, bài viết, môn học, tài liệu</string>
-    <string name="search_tab_users">Người dùng</string>
-    <string name="search_tab_posts">Bài viết</string>
-    <string name="search_tab_subjects">Môn học</string>
-    <string name="search_tab_documents">Tài liệu</string>
-    <string name="search_idle">Nhập ít nhất 2 ký tự để tìm kiếm.</string>
-    <string name="search_empty">Không tìm thấy kết quả cho “%1$s”.</string>
-    <string name="search_loading">Đang tìm kiếm</string>
-    <string name="search_loading_more">Đang tải thêm kết quả</string>
-    <string name="search_document_icon">Tài liệu đính kèm</string>
-    <string name="search_document_post">Trong bài: %1$s</string>
-    <string name="search_document_meta">%1$s · %2$s</string>
 </resources>

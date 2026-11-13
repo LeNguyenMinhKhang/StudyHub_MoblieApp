@@ -14,10 +14,9 @@ sealed interface ApiResponse<out T> {
 
 data class ApiError(
     val type: ErrorType,
-    val fieldErrors: Map<String, String> = emptyMap(),
-    val detailMessage: String? = null
+    val fieldErrors: Map<String, String> = emptyMap()
 ) {
     val code: String get() = type.code
-    val message: String get() = detailMessage ?: type.userMessage
+    val message: String get() = type.userMessage
     val retryable: Boolean get() = type.retryable
 }

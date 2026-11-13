@@ -52,8 +52,6 @@ class DetailFileAdapter : RecyclerView.Adapter<DetailFileAdapter.ViewHolder>() {
                 try {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(file.fileUrl))
                     itemView.context.startActivity(intent)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
                 } catch (e: Exception) {
                     Toast.makeText(
                         itemView.context,
