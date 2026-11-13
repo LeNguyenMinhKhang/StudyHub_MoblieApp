@@ -470,6 +470,58 @@ drop policy if exists "saved_posts_delete_own" on public.saved_posts;
 create policy "saved_posts_delete_own" on public.saved_posts
   for delete using (auth.uid() = user_id);
 
+create index if not exists post_hashtags_post_id_idx on public.post_hashtags(post_id);
+create index if not exists post_hashtags_hashtag_id_idx on public.post_hashtags(hashtag_id);
+create index if not exists saved_posts_user_id_idx on public.saved_posts(user_id);
+create index if not exists saved_posts_post_id_idx on public.saved_posts(post_id);
+
+create or replace function public.toggle_saved_post(p_post_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_user_id uuid := auth.uid();
+    v_exists boolean;
+begin
+    if v_user_id is null then
+        raise exception 'not authenticated' using errcode = '42501';
+    end if;
+
+    if p_post_id is null then
+        raise exception 'invalid post id' using errcode = '22023';
+    end if;
+
+    if not exists (
+        select 1 from public.posts p
+        where p.id = p_post_id
+    ) then
+        raise exception 'post not found' using errcode = 'P0002';
+    end if;
+
+    select exists (
+        select 1 from public.saved_posts sp
+        where sp.user_id = v_user_id and sp.post_id = p_post_id
+    ) into v_exists;
+
+    if v_exists then
+        delete from public.saved_posts sp
+        where sp.user_id = v_user_id and sp.post_id = p_post_id;
+        return false;
+    else
+        insert into public.saved_posts (user_id, post_id)
+        values (v_user_id, p_post_id)
+        on conflict (user_id, post_id) do nothing;
+        return true;
+    end if;
+end;
+$$;
+
+revoke all on function public.toggle_saved_post(uuid) from public, anon;
+grant execute on function public.toggle_saved_post(uuid) to authenticated;
+
+
 -- =====================================================================
 -- 11. friendships (phân hệ 7.1, 7.2)
 -- =====================================================================
@@ -505,6 +557,7 @@ create policy "friendships_delete_involved" on public.friendships
 
 -- =====================================================================
 -- 12. blocks (phân hệ 7.6)
+-- Source: supabase/migrations/20261108120000_user_block_settings.sql
 -- =====================================================================
 create table if not exists public.blocks (
   id uuid primary key default gen_random_uuid(),
@@ -516,17 +569,278 @@ create table if not exists public.blocks (
 
 alter table public.blocks enable row level security;
 
-drop policy if exists "blocks_select_own" on public.blocks;
-create policy "blocks_select_own" on public.blocks
-  for select using (auth.uid() = blocker_id);
+-- Snapshot trạng thái Block
+create or replace function studyhub_private.block_snapshot(
+    p_actor uuid,
+    p_target uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_blocked_by_me boolean;
+    v_blocked_me boolean;
+begin
+    if p_target is null or p_target = p_actor then
+        raise exception 'invalid target' using errcode = 'F0001';
+    end if;
 
-drop policy if exists "blocks_insert_own" on public.blocks;
-create policy "blocks_insert_own" on public.blocks
-  for insert with check (auth.uid() = blocker_id);
+    if not exists (
+        select 1
+        from public.profiles
+        where id = p_target
+    ) then
+        raise exception 'target unavailable' using errcode = 'F0002';
+    end if;
 
-drop policy if exists "blocks_delete_own" on public.blocks;
-create policy "blocks_delete_own" on public.blocks
-  for delete using (auth.uid() = blocker_id);
+    select exists (
+        select 1 from public.blocks
+        where blocker_id = p_actor and blocked_id = p_target
+    ) into v_blocked_by_me;
+
+    select exists (
+        select 1 from public.blocks
+        where blocker_id = p_target and blocked_id = p_actor
+    ) into v_blocked_me;
+
+    return jsonb_build_object(
+        'target_id', p_target,
+        'blocked_by_me', v_blocked_by_me,
+        'blocked_me', v_blocked_me,
+        'is_blocked', v_blocked_by_me or v_blocked_me
+    );
+end;
+$$;
+
+-- Lấy trạng thái Block
+create or replace function public.get_block_state(
+    p_target_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+begin
+    return studyhub_private.block_snapshot(v_actor, p_target_id);
+end;
+$$;
+
+-- Block user
+create or replace function public.block_user(
+    p_target_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_relation public.friendships;
+begin
+    if p_target_id is null or p_target_id = v_actor then
+        raise exception 'invalid target' using errcode = 'F0001';
+    end if;
+
+    if not exists (
+        select 1
+        from public.profiles
+        where id = p_target_id
+          and not is_banned
+    ) then
+        raise exception 'peer unavailable' using errcode = 'F0002';
+    end if;
+
+    -- Serialize các thao tác Block trên cùng một cặp người dùng
+    perform pg_advisory_xact_lock(
+        hashtextextended(
+            least(v_actor::text, p_target_id::text)
+            || ':'
+            || greatest(v_actor::text, p_target_id::text),
+            0
+        )
+    );
+
+    -- Ngăn thao tác Friendship đồng thời vượt qua thời điểm Block
+    lock table public.friendships in share row exclusive mode;
+
+    -- Tạo Block. Nếu đã tồn tại thì không tạo bản ghi trùng
+    insert into public.blocks(blocker_id, blocked_id)
+    values (v_actor, p_target_id)
+    on conflict (blocker_id, blocked_id) do nothing;
+
+    -- Xóa quan hệ bạn bè hoặc lời mời đang chờ giữa hai người
+    delete from public.friendships
+    where least(requester_id, addressee_id)
+              = least(v_actor, p_target_id)
+      and greatest(requester_id, addressee_id)
+              = greatest(v_actor, p_target_id)
+    returning * into v_relation;
+
+    -- Dọn thông báo lời mời kết bạn liên quan
+    if found then
+        delete from public.notifications
+        where type = 'friend_request'
+          and user_id = v_relation.addressee_id
+          and actor_id = v_relation.requester_id
+          and (
+              source_id = v_relation.id
+              or source_id is null
+          );
+    end if;
+
+    return studyhub_private.block_snapshot(
+        v_actor,
+        p_target_id
+    );
+end;
+$$;
+
+-- Unblock user
+create or replace function public.unblock_user(
+    p_target_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+begin
+    if p_target_id is null or p_target_id = v_actor then
+        raise exception 'invalid target' using errcode = 'F0001';
+    end if;
+
+    perform pg_advisory_xact_lock(
+        hashtextextended(
+            least(v_actor::text, p_target_id::text)
+            || ':'
+            || greatest(v_actor::text, p_target_id::text),
+            0
+        )
+    );
+
+    -- Chỉ xóa bản ghi do chính actor tạo
+    delete from public.blocks
+    where blocker_id = v_actor
+      and blocked_id = p_target_id;
+
+    return studyhub_private.block_snapshot(
+        v_actor,
+        p_target_id
+    );
+end;
+$$;
+
+-- Danh sách người tôi đã Block
+create or replace function public.list_blocked_users(
+    p_limit integer default 20,
+    p_cursor_created_at timestamptz default null,
+    p_cursor_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_page_size integer;
+    v_result jsonb;
+begin
+    if p_limit is null
+       or p_limit <= 0
+       or ((p_cursor_created_at is null) <> (p_cursor_id is null))
+       or (
+           p_cursor_created_at is not null
+           and not isfinite(p_cursor_created_at)
+       ) then
+        raise exception 'invalid page input' using errcode = 'F0001';
+    end if;
+
+    v_page_size := least(p_limit, 50);
+
+    with candidates as materialized (
+        select
+            b.id,
+            b.created_at,
+            jsonb_build_object(
+                'id', p.id,
+                'username', p.username,
+                'display_name', p.display_name,
+                'avatar_url', p.avatar_url
+            ) as peer
+        from public.blocks b
+        join public.profiles p
+            on p.id = b.blocked_id
+        where b.blocker_id = v_actor
+          and (
+              p_cursor_id is null
+              or (b.created_at, b.id)
+                 < (p_cursor_created_at, p_cursor_id)
+          )
+        order by b.created_at desc, b.id desc
+        limit v_page_size + 1
+    ),
+    page as (
+        select *
+        from candidates
+        order by created_at desc, id desc
+        limit v_page_size
+    )
+    select jsonb_build_object(
+        'items',
+        coalesce(
+            (
+                select jsonb_agg(
+                    to_jsonb(page)
+                    order by created_at desc, id desc
+                )
+                from page
+            ),
+            '[]'::jsonb
+        ),
+        'next_cursor',
+        case
+            when (select count(*) from candidates) > v_page_size
+            then (
+                select jsonb_build_object(
+                    'created_at', created_at,
+                    'id', id
+                )
+                from page
+                order by created_at, id
+                limit 1
+            )
+            else null
+        end
+    )
+    into v_result;
+
+    return v_result;
+end;
+$$;
+
+-- Chỉ sử dụng RPC, không cho client thao tác trực tiếp trên bảng blocks
+revoke all on public.blocks from public, anon, authenticated;
+revoke all on function studyhub_private.block_snapshot(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.get_block_state(uuid),
+    public.block_user(uuid),
+    public.unblock_user(uuid),
+    public.list_blocked_users(integer, timestamptz, uuid)
+from public, anon, authenticated;
+
+grant execute on function public.get_block_state(uuid),
+    public.block_user(uuid),
+    public.unblock_user(uuid),
+    public.list_blocked_users(integer, timestamptz, uuid)
+to authenticated;
 
 -- =====================================================================
 -- 13. reports (phân hệ 6.7, 12.4)
@@ -560,7 +874,94 @@ create policy "reports_update_admin" on public.reports
   );
 
 -- =====================================================================
--- 14. conversations (phân hệ 8, 9)
+
+-- =====================================================================
+-- 14. Helper functions for Chat RLS (Tránh đệ quy & kiểm tra block)
+-- =====================================================================
+create or replace function public.is_conversation_member(p_conversation_id uuid, p_user_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = 'public', 'auth', 'pg_temp'
+stable
+as $$
+  select exists (
+    select 1 from public.conversation_members
+    where conversation_id = p_conversation_id and user_id = p_user_id
+  );
+$$;
+
+create or replace function public.is_conversation_admin(p_conversation_id uuid, p_user_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = 'public', 'auth', 'pg_temp'
+stable
+as $$
+  select exists (
+    select 1 from public.conversation_members
+    where conversation_id = p_conversation_id and user_id = p_user_id and role = 'admin'
+  );
+$$;
+
+create or replace function public.direct_chat_available(
+    p_conversation_id uuid,
+    p_actor_id uuid
+)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+    v_type text;
+    v_peer_id uuid;
+begin
+    if p_actor_id is null or p_conversation_id is null then
+        return false;
+    end if;
+
+    select c.type
+    into v_type
+    from public.conversations c
+    where c.id = p_conversation_id;
+
+    if not found then
+        return false;
+    end if;
+
+    -- Group chat không bị ảnh hưởng bởi chức năng block.
+    if v_type <> 'direct' then
+        return true;
+    end if;
+
+    -- Tìm người còn lại trong direct conversation.
+    select m.user_id
+    into v_peer_id
+    from public.conversation_members m
+    where m.conversation_id = p_conversation_id
+      and m.user_id <> p_actor_id
+    limit 1;
+
+    if v_peer_id is null then
+        return false;
+    end if;
+
+    -- Kiểm tra block hai chiều.
+    return studyhub_private.friend_peer_available(
+        p_actor_id,
+        v_peer_id
+    );
+end;
+$$;
+
+grant execute on function public.is_conversation_member(uuid, uuid) to authenticated, anon;
+grant execute on function public.is_conversation_admin(uuid, uuid) to authenticated, anon;
+grant execute on function public.direct_chat_available(uuid, uuid) to authenticated;
+
+-- =====================================================================
+-- 15. conversations (phân hệ 8, 9)
 -- =====================================================================
 create table if not exists public.conversations (
   id uuid primary key default gen_random_uuid(),
@@ -572,7 +973,9 @@ create table if not exists public.conversations (
   created_at timestamptz not null default now()
 );
 
--- Create the referenced table before conversations policies query membership.
+-- =====================================================================
+-- 16. conversation_members (phân hệ 8, 9.2, 9.4)
+-- =====================================================================
 create table if not exists public.conversation_members (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references public.conversations(id) on delete cascade,
@@ -583,14 +986,21 @@ create table if not exists public.conversation_members (
   unique (conversation_id, user_id)
 );
 
+create index if not exists conversation_members_conv_idx on public.conversation_members(conversation_id);
+create index if not exists conversation_members_user_idx on public.conversation_members(user_id);
+
 alter table public.conversations enable row level security;
 
 drop policy if exists "conversations_select_member" on public.conversations;
 create policy "conversations_select_member" on public.conversations
   for select using (
-    exists (
-      select 1 from public.conversation_members m
-      where m.conversation_id = id and m.user_id = auth.uid()
+    (
+      created_by = auth.uid()
+      or public.is_conversation_member(id, auth.uid())
+    )
+    and (
+      type <> 'direct'
+      or public.direct_chat_available(id, auth.uid())
     )
   );
 
@@ -600,37 +1010,28 @@ create policy "conversations_insert_authenticated" on public.conversations
 
 drop policy if exists "conversations_update_group_admin" on public.conversations;
 create policy "conversations_update_group_admin" on public.conversations
-  for update using (
-    exists (
-      select 1 from public.conversation_members m
-      where m.conversation_id = id and m.user_id = auth.uid() and m.role = 'admin'
-    )
-  );
-
--- =====================================================================
--- 15. conversation_members (phân hệ 8, 9.2, 9.4)
--- =====================================================================
-create index if not exists conversation_members_conv_idx on public.conversation_members(conversation_id);
-create index if not exists conversation_members_user_idx on public.conversation_members(user_id);
+  for update using (public.is_conversation_admin(id, auth.uid()));
 
 alter table public.conversation_members enable row level security;
 
 drop policy if exists "conv_members_select_self_conv" on public.conversation_members;
 create policy "conv_members_select_self_conv" on public.conversation_members
   for select using (
-    exists (
-      select 1 from public.conversation_members m2
-      where m2.conversation_id = conversation_id and m2.user_id = auth.uid()
+    (
+      user_id = auth.uid()
+      or public.is_conversation_member(conversation_id, auth.uid())
     )
+    and public.direct_chat_available(conversation_id, auth.uid())
   );
 
 drop policy if exists "conv_members_insert_self_or_admin" on public.conversation_members;
 create policy "conv_members_insert_self_or_admin" on public.conversation_members
   for insert with check (
     auth.uid() = user_id
+    or public.is_conversation_admin(conversation_id, auth.uid())
     or exists (
-      select 1 from public.conversation_members m2
-      where m2.conversation_id = conversation_id and m2.user_id = auth.uid() and m2.role = 'admin'
+      select 1 from public.conversations c
+      where c.id = conversation_id and c.created_by = auth.uid()
     )
   );
 
@@ -642,20 +1043,17 @@ drop policy if exists "conv_members_delete_self_or_admin" on public.conversation
 create policy "conv_members_delete_self_or_admin" on public.conversation_members
   for delete using (
     auth.uid() = user_id
-    or exists (
-      select 1 from public.conversation_members m2
-      where m2.conversation_id = conversation_id and m2.user_id = auth.uid() and m2.role = 'admin'
-    )
+    or public.is_conversation_admin(conversation_id, auth.uid())
   );
 
 -- =====================================================================
--- 16. messages (phân hệ 8.2, 8.3, 8.5, 9.3)
+-- 17. messages (phân hệ 8.2, 8.3, 8.5, 9.3)
 -- =====================================================================
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references public.conversations(id) on delete cascade,
   sender_id uuid not null references public.profiles(id) on delete cascade,
-  type text not null check (type in ('text','image','file')),
+  type text not null default 'text' check (type in ('text','image','file')),
   content text,
   file_url text,
   status text not null default 'sent' check (status in ('sending','sent','failed','seen')),
@@ -669,27 +1067,22 @@ alter table public.messages enable row level security;
 drop policy if exists "messages_select_member" on public.messages;
 create policy "messages_select_member" on public.messages
   for select using (
-    exists (
-      select 1 from public.conversation_members m
-      where m.conversation_id = conversation_id and m.user_id = auth.uid()
-    )
+    public.is_conversation_member(conversation_id, auth.uid())
+    and public.direct_chat_available(conversation_id, auth.uid())
   );
 
 drop policy if exists "messages_insert_member" on public.messages;
 create policy "messages_insert_member" on public.messages
   for insert with check (
     auth.uid() = sender_id
-    and exists (
-      select 1 from public.conversation_members m
-      where m.conversation_id = conversation_id and m.user_id = auth.uid()
-    )
+    and public.is_conversation_member(conversation_id, auth.uid())
+    and public.direct_chat_available(conversation_id, auth.uid())
   );
 
 drop policy if exists "messages_update_own" on public.messages;
 create policy "messages_update_own" on public.messages
   for update using (auth.uid() = sender_id);
 
--- =====================================================================
 -- 17. notifications (phân hệ 10)
 -- =====================================================================
 create table if not exists public.notifications (
@@ -722,7 +1115,9 @@ create policy "notifications_update_own" on public.notifications
   for update using (auth.uid() = user_id);
 
 -- =====================================================================
--- 18. Quyền truy cập bảng (Grants)
+
+-- =====================================================================
+-- 19. Quyền truy cập bảng (Grants)
 -- =====================================================================
 grant usage on schema public to authenticated, anon;
 grant select on public.profiles to authenticated, anon;
@@ -734,14 +1129,18 @@ grant select on public.post_files to authenticated, anon;
 grant select, insert, update, delete on public.post_files to authenticated;
 grant select, insert, delete on public.likes to authenticated;
 grant select, insert, update, delete on public.comments to authenticated;
+grant select, insert, update, delete on public.conversations to authenticated;
+grant select, insert, update, delete on public.conversation_members to authenticated;
+grant select, insert, update, delete on public.messages to authenticated;
 
 -- =====================================================================
--- 19. Supabase Storage Buckets ('documents' & 'posts' cho ảnh và file bài viết)
+-- 20. Supabase Storage Buckets ('documents', 'posts', 'chat')
 -- =====================================================================
 insert into storage.buckets (id, name, public)
 values 
   ('documents', 'documents', true),
-  ('posts', 'posts', true)
+  ('posts', 'posts', true),
+  ('chat', 'chat', true)
 on conflict (id) do update set public = true;
 
 -- Cho phép đọc file công khai
@@ -750,12 +1149,20 @@ create policy "Allow public read documents"
   on storage.objects for select
   using (bucket_id in ('documents', 'posts'));
 
+drop policy if exists "chat_storage_select_public" on storage.objects;
+create policy "chat_storage_select_public" on storage.objects
+  for select using (bucket_id = 'chat');
+
 -- Cho phép người dùng đã đăng nhập tải ảnh/tài liệu lên
 drop policy if exists "Allow authenticated upload documents" on storage.objects;
 create policy "Allow authenticated upload documents"
   on storage.objects for insert
   to authenticated
   with check (bucket_id in ('documents', 'posts'));
+
+drop policy if exists "chat_storage_insert_authenticated" on storage.objects;
+create policy "chat_storage_insert_authenticated" on storage.objects
+  for insert with check (bucket_id = 'chat' and auth.role() = 'authenticated');
 
 -- Cho phép người dùng đã đăng nhập cập nhật file của mình
 drop policy if exists "Allow authenticated update documents" on storage.objects;
@@ -772,8 +1179,27 @@ create policy "Allow authenticated delete documents"
   using (bucket_id in ('documents', 'posts'));
 
 -- =====================================================================
--- Hết. 17 bảng đầy đủ, RLS bật, Cascade Delete, Storage bucket đã cấu hình.
+-- 21. Supabase Realtime CDC Publication
 -- =====================================================================
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table public.messages;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'conversations'
+  ) then
+    alter publication supabase_realtime add table public.conversations;
+  end if;
+end $$;
+
+alter table public.messages replica identity full;
+alter table public.conversations replica identity full;
 
 -- Friendship RPC contract (20261027_friendship_rpc.sql)
 
@@ -965,44 +1391,1142 @@ grant execute on function public.get_friendship_state(uuid), public.send_friend_
     public.accept_friend_request(uuid), public.decline_friend_request(uuid),
     public.cancel_friend_request(uuid), public.remove_friendship(uuid),
     public.list_my_friendships(text,integer,timestamptz,uuid) to authenticated;
+
+-- =====================================================================
+-- 23. Direct Chat & Messaging RPC Functions
+-- Source: supabase/migrations/20261108130000_block_direct_chat.sql
+-- =====================================================================
+
+-- Lấy hoặc tạo cuộc hội thoại 1-1 (Kiểm tra block 2 chiều)
+create or replace function public.get_or_create_direct_conversation(
+    p_target_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = 'public', 'auth', 'studyhub_private', 'pg_temp'
+as $$
+declare
+    v_actor uuid := auth.uid();
+    v_conversation_id uuid;
+    v_target_name text;
+    v_target_avatar text;
+begin
+    if v_actor is null then
+        raise exception 'not authenticated'
+            using errcode = '42501';
+    end if;
+
+    if p_target_id is null or p_target_id = v_actor then
+        raise exception 'invalid target user'
+            using errcode = '22023';
+    end if;
+
+    select
+        display_name,
+        avatar_url
+    into
+        v_target_name,
+        v_target_avatar
+    from public.profiles
+    where id = p_target_id
+      and not is_banned;
+
+    if not found then
+        raise exception 'target user unavailable'
+            using errcode = 'P0002';
+    end if;
+
+    -- Không cho tạo hoặc mở direct chat nếu một trong hai bên đã block.
+    if not studyhub_private.friend_peer_available(
+        v_actor,
+        p_target_id
+    ) then
+        raise exception 'direct conversation unavailable'
+            using errcode = '42501';
+    end if;
+
+    -- Tìm cuộc hội thoại direct đã có giữa 2 người
+    select c.id
+    into v_conversation_id
+    from public.conversations c
+    where c.type = 'direct'
+      and exists (
+          select 1
+          from public.conversation_members m
+          where m.conversation_id = c.id
+            and m.user_id = v_actor
+      )
+      and exists (
+          select 1
+          from public.conversation_members m
+          where m.conversation_id = c.id
+            and m.user_id = p_target_id
+      )
+    limit 1;
+
+    -- Nếu chưa có thì tạo mới hội thoại và thêm cả 2 vào thành viên
+    if v_conversation_id is null then
+        insert into public.conversations (
+            type,
+            created_by
+        )
+        values (
+            'direct',
+            v_actor
+        )
+        returning id into v_conversation_id;
+
+        insert into public.conversation_members (
+            conversation_id,
+            user_id,
+            role
+        )
+        values
+            (v_conversation_id, v_actor, 'admin'),
+            (v_conversation_id, p_target_id, 'member')
+        on conflict (conversation_id, user_id) do nothing;
+    end if;
+
+    return jsonb_build_object(
+        'conversation_id', v_conversation_id,
+        'target_user_id', p_target_id,
+        'target_display_name', v_target_name,
+        'target_avatar_url', v_target_avatar
+    );
+end;
+$$;
+
+-- Danh sách các cuộc trò chuyện của người dùng hiện tại (ẩn direct chat bị block)
+create or replace function public.list_my_conversations()
+returns table (
+    conversation_id uuid,
+    type text,
+    title text,
+    avatar_url text,
+    last_message_content text,
+    last_message_type text,
+    last_message_at timestamptz,
+    unread_count bigint
+)
+language plpgsql
+security definer
+set search_path = 'public', 'auth', 'pg_temp'
+as $$
+declare
+    v_actor uuid := auth.uid();
+begin
+    if v_actor is null then
+        raise exception 'not authenticated'
+            using errcode = '42501';
+    end if;
+
+    return query
+    with my_convs as (
+        select
+            m.conversation_id,
+            m.last_read_at
+        from public.conversation_members m
+        where m.user_id = v_actor
+    ),
+
+    conv_details as (
+        select
+            c.id,
+            c.type,
+
+            case
+                when c.type = 'direct' then (
+                    select p.display_name
+                    from public.conversation_members other_m
+                    join public.profiles p
+                      on p.id = other_m.user_id
+                    where other_m.conversation_id = c.id
+                      and other_m.user_id <> v_actor
+                    limit 1
+                )
+                else c.name
+            end as computed_title,
+
+            case
+                when c.type = 'direct' then (
+                    select p.avatar_url
+                    from public.conversation_members other_m
+                    join public.profiles p
+                      on p.id = other_m.user_id
+                    where other_m.conversation_id = c.id
+                      and other_m.user_id <> v_actor
+                    limit 1
+                )
+                else c.avatar_url
+            end as computed_avatar,
+
+            mc.last_read_at
+
+        from my_convs mc
+        join public.conversations c
+          on c.id = mc.conversation_id
+    ),
+
+    last_msgs as (
+        select distinct on (msg.conversation_id)
+            msg.conversation_id,
+            msg.content,
+            msg.type,
+            msg.created_at
+        from public.messages msg
+        join my_convs mc
+          on mc.conversation_id = msg.conversation_id
+        order by
+            msg.conversation_id,
+            msg.created_at desc
+    ),
+
+    unreads as (
+        select
+            msg.conversation_id,
+            count(*) as unread_count
+        from public.messages msg
+        join my_convs mc
+          on mc.conversation_id = msg.conversation_id
+        where msg.sender_id <> v_actor
+          and (
+              mc.last_read_at is null
+              or msg.created_at > mc.last_read_at
+          )
+        group by msg.conversation_id
+    )
+
+    select
+        cd.id as conversation_id,
+        cd.type,
+        coalesce(cd.computed_title, 'Trò chuyện') as title,
+        cd.computed_avatar as avatar_url,
+        lm.content as last_message_content,
+        lm.type as last_message_type,
+        lm.created_at as last_message_at,
+        coalesce(u.unread_count, 0) as unread_count
+
+    from conv_details cd
+
+    left join last_msgs lm
+      on lm.conversation_id = cd.id
+
+    left join unreads u
+      on u.conversation_id = cd.id
+
+    where
+        cd.type <> 'direct'
+        or public.direct_chat_available(
+            cd.id,
+            v_actor
+        )
+
+    order by coalesce(
+        lm.created_at,
+        '1970-01-01'::timestamptz
+    ) desc;
+
+end;
+$$;
+
+-- Đánh dấu đã đọc cuộc hội thoại
+create or replace function public.mark_conversation_read(p_conversation_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = 'public', 'auth', 'pg_temp'
+as $$
+declare
+    v_actor uuid := auth.uid();
+begin
+    if v_actor is null then
+        raise exception 'not authenticated' using errcode = '42501';
+    end if;
+
+    update public.conversation_members
+    set last_read_at = now()
+    where conversation_id = p_conversation_id and user_id = v_actor;
+end;
+$$;
+
+-- Gửi tin nhắn mới (text hoặc image, chặn nếu direct chat bị block)
+drop function if exists public.send_chat_message(uuid, text, text, text);
+drop function if exists public.send_chat_message;
+
+create or replace function public.send_chat_message(
+    p_conversation_id uuid,
+    p_content text default null,
+    p_type text default 'text',
+    p_file_url text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = 'public', 'auth', 'pg_temp'
+as $$
+declare
+    v_sender_id uuid := auth.uid();
+    v_msg record;
+    v_conversation_type text;
+begin
+    if v_sender_id is null then
+        raise exception 'not authenticated'
+            using errcode = '42501';
+    end if;
+
+    -- Người gửi phải là thành viên
+    if not public.is_conversation_member(
+        p_conversation_id,
+        v_sender_id
+    ) then
+        raise exception 'user is not a member of this conversation'
+            using errcode = '42501';
+    end if;
+
+    select c.type
+    into v_conversation_type
+    from public.conversations c
+    where c.id = p_conversation_id;
+
+    if not found then
+        raise exception 'conversation not found'
+            using errcode = 'P0002';
+    end if;
+
+    -- Chỉ kiểm tra block với direct chat. Group chat vẫn hoạt động bình thường.
+    if v_conversation_type = 'direct'
+       and not public.direct_chat_available(
+           p_conversation_id,
+           v_sender_id
+       ) then
+        raise exception 'direct conversation unavailable'
+            using errcode = '42501';
+    end if;
+
+    -- Kiểm tra nội dung tin nhắn
+    if coalesce(p_type, 'text') = 'text'
+       and (
+           p_content is null
+           or btrim(p_content) = ''
+       ) then
+        raise exception 'content cannot be empty for text message'
+            using errcode = '22023';
+    end if;
+
+    if coalesce(p_type, 'text') = 'image'
+       and (
+           p_file_url is null
+           or btrim(p_file_url) = ''
+       ) then
+        raise exception 'file_url cannot be empty for image message'
+            using errcode = '22023';
+    end if;
+
+    -- Thêm tin nhắn
+    insert into public.messages (
+        id,
+        conversation_id,
+        sender_id,
+        type,
+        content,
+        file_url,
+        status,
+        created_at
+    )
+    values (
+        gen_random_uuid(),
+        p_conversation_id,
+        v_sender_id,
+        coalesce(p_type, 'text'),
+        p_content,
+        p_file_url,
+        'sent',
+        now()
+    )
+    returning * into v_msg;
+
+    -- Cập nhật trạng thái đã đọc cho người gửi
+    update public.conversation_members
+    set last_read_at = now()
+    where conversation_id = p_conversation_id
+      and user_id = v_sender_id;
+
+    return to_jsonb(v_msg);
+end;
+$$;
+
+grant execute on function public.get_or_create_direct_conversation(uuid) to authenticated;
+grant execute on function public.list_my_conversations() to authenticated;
+grant execute on function public.mark_conversation_read(uuid) to authenticated;
+grant execute on function public.send_chat_message(uuid, text, text, text) to authenticated;
+
+-- =====================================================================
+-- 24. Unified search (pg_trgm + unaccent RPCs, phân hệ 7.3)
+-- Source: supabase/migrations/20261106_unified_search.sql
+-- =====================================================================
+
+do $$
+begin
+    if to_regprocedure('studyhub_private.friend_actor()') is null
+       or to_regprocedure('studyhub_private.friend_peer_available(uuid,uuid)') is null then
+        raise exception 'search preflight failed: friendship helpers are missing';
+    end if;
+end;
+$$;
+
+create schema if not exists extensions;
+create extension if not exists pg_trgm with schema extensions;
+create extension if not exists unaccent with schema extensions;
+
+do $$
+begin
+    if exists (
+        select 1 from pg_extension e join pg_namespace n on n.oid = e.extnamespace
+        where e.extname in ('pg_trgm', 'unaccent') and n.nspname <> 'extensions'
+    ) then
+        raise exception 'search preflight failed: pg_trgm and unaccent must live in schema extensions';
+    end if;
+end;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- Normalization helpers (IMMUTABLE so they can back expression indexes).
+-- unaccent itself is STABLE; the dictionary-qualified call is pinned here.
+-- Reindex the *_trgm_idx indexes after upgrading the unaccent rules.
+-- ------------------------------------------------------------------------------
+create or replace function studyhub_private.search_norm(p_value text)
+returns text
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+    select btrim(regexp_replace(
+        regexp_replace(
+            lower(extensions.unaccent('extensions.unaccent'::regdictionary, normalize(p_value, NFC))),
+            '[_./-]+', ' ', 'g'),
+        '\s+', ' ', 'g'))
+$$;
+
+-- Same expression as search_norm after dropping the extension. It is inlined
+-- rather than calling search_norm by name: index expressions run as the
+-- writing role, which has no USAGE on schema studyhub_private.
+create or replace function studyhub_private.search_file_norm(p_value text)
+returns text
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+    select btrim(regexp_replace(
+        regexp_replace(
+            lower(extensions.unaccent('extensions.unaccent'::regdictionary,
+                normalize(regexp_replace(p_value, '\.[A-Za-z0-9]{1,8}$', ''), NFC))),
+            '[_./-]+', ' ', 'g'),
+        '\s+', ' ', 'g'))
+$$;
+
+create or replace function studyhub_private.search_like_escape(p_value text)
+returns text
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+    select replace(replace(replace(p_value, '\', '\\'), '%', '\%'), '_', '\_')
+$$;
+
+-- Validates paging input and returns the normalized query and page window.
+create or replace function studyhub_private.search_input(
+    p_query text, p_limit integer, p_offset integer,
+    out q text, out q_like text, out q_raw text, out page_size integer)
+language plpgsql
+immutable
+set search_path = ''
+as $$
+begin
+    if p_query is null or p_limit is null or p_offset is null
+       or p_limit <= 0 or p_offset < 0 or char_length(p_query) > 100 then
+        raise exception 'invalid search input' using errcode = 'F0001';
+    end if;
+    q := coalesce(studyhub_private.search_norm(p_query), '');
+    q_like := studyhub_private.search_like_escape(q);
+    q_raw := lower(btrim(p_query));
+    page_size := greatest(least(p_limit, 50, 100 - p_offset), 0);
+end;
+$$;
+
+-- Mirrors PostTypeUtils.parse: "<category>:<visibility>" or a legacy single value.
+-- SQL-standard body: names are bound at creation (no search_path exposure) and
+-- the planner can inline it into the search queries.
+create or replace function studyhub_private.post_visibility(p_type text)
+returns text
+language sql
+immutable
+parallel safe
+return case pg_catalog.lower(pg_catalog.btrim(
+        case when pg_catalog.strpos(coalesce(p_type, ''), ':') > 0 then pg_catalog.split_part(p_type, ':', 2)
+             else coalesce(p_type, '') end, E' \t\r\n'))
+    when 'friends' then 'friends'
+    when 'private' then 'private'
+    else 'public'
+end;
+
+-- ------------------------------------------------------------------------------
+-- Trigram expression indexes. Queries must use the same expressions.
+-- ------------------------------------------------------------------------------
+create index if not exists profiles_username_trgm_idx
+    on public.profiles using gin (studyhub_private.search_norm(username) extensions.gin_trgm_ops);
+create index if not exists profiles_display_name_trgm_idx
+    on public.profiles using gin (studyhub_private.search_norm(display_name) extensions.gin_trgm_ops);
+create index if not exists posts_title_trgm_idx
+    on public.posts using gin (studyhub_private.search_norm(title) extensions.gin_trgm_ops);
+create index if not exists posts_content_trgm_idx
+    on public.posts using gin (studyhub_private.search_norm(content) extensions.gin_trgm_ops);
+create index if not exists subjects_name_trgm_idx
+    on public.subjects using gin (studyhub_private.search_norm(name) extensions.gin_trgm_ops);
+create index if not exists post_files_file_name_trgm_idx
+    on public.post_files using gin (studyhub_private.search_file_norm(file_name) extensions.gin_trgm_ops);
+
+-- ------------------------------------------------------------------------------
+-- RPCs. Ranking: tier (1 prefix, 2 contains, 3 fuzzy), exact-diacritic match,
+-- word similarity, tab secondary key, id. Pages are capped at 50 items and
+-- the first 100 ranked results.
+-- ------------------------------------------------------------------------------
+create or replace function public.search_profiles(p_query text, p_limit integer default 20, p_offset integer default 0)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+set pg_trgm.word_similarity_threshold = '0.5'
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_q text; v_like text; v_raw text; v_size integer; v_contains text; v_fuzzy boolean;
+    v_result jsonb;
+begin
+    select i.q, i.q_like, i.q_raw, i.page_size into v_q, v_like, v_raw, v_size
+    from studyhub_private.search_input(p_query, p_limit, p_offset) i;
+    if char_length(v_q) < 2 or v_size = 0 then
+        return jsonb_build_object('items', '[]'::jsonb, 'has_more', false);
+    end if;
+    v_contains := '%' || v_like || '%';
+    -- Trigrams ignore symbols, so queries such as "100%" or "c++" stay literal.
+    v_fuzzy := char_length(v_q) >= 4 and v_q !~ '[^[:alnum:][:space:]]';
+
+    with hits as (
+        select p.id, p.username, p.display_name, p.avatar_url,
+               studyhub_private.search_norm(p.username) as n_user,
+               studyhub_private.search_norm(p.display_name) as n_display
+        from public.profiles p
+        where not p.is_banned
+          and (p.id = v_actor or not exists (
+                select 1 from public.blocks b
+                where (b.blocker_id = v_actor and b.blocked_id = p.id)
+                   or (b.blocker_id = p.id and b.blocked_id = v_actor)))
+          and (studyhub_private.search_norm(p.username) like v_contains escape '\'
+               or studyhub_private.search_norm(p.display_name) like v_contains escape '\'
+               or (v_fuzzy and v_q operator(extensions.<%) studyhub_private.search_norm(p.username))
+               or (v_fuzzy and v_q operator(extensions.<%) studyhub_private.search_norm(p.display_name)))
+    ), ordered as (
+        select h.*, row_number() over (order by
+            case when h.n_user like v_like || '%' escape '\' or h.n_display like v_like || '%' escape '\' then 1
+                 when h.n_user like v_contains escape '\' or h.n_display like v_contains escape '\' then 2
+                 else 3 end,
+            (strpos(lower(h.username), v_raw) > 0 or strpos(lower(h.display_name), v_raw) > 0) desc,
+            greatest(extensions.word_similarity(v_q, h.n_user), extensions.word_similarity(v_q, h.n_display)) desc,
+            h.username, h.id) as rn
+        from hits h
+    )
+    select jsonb_build_object(
+        'items', coalesce(jsonb_agg(jsonb_build_object(
+                'id', o.id, 'username', o.username, 'display_name', o.display_name, 'avatar_url', o.avatar_url)
+            order by o.rn) filter (where o.rn > p_offset and o.rn <= p_offset + v_size), '[]'::jsonb),
+        'has_more', coalesce(bool_or(o.rn > p_offset + v_size), false) and p_offset + v_size < 100)
+    into v_result
+    from ordered o
+    where o.rn <= p_offset + v_size + 1;
+    return v_result;
+end;
+$$;
+
+create or replace function public.search_subjects(p_query text, p_limit integer default 20, p_offset integer default 0)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+set pg_trgm.word_similarity_threshold = '0.5'
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_q text; v_like text; v_raw text; v_size integer; v_contains text; v_fuzzy boolean;
+    v_result jsonb;
+begin
+    select i.q, i.q_like, i.q_raw, i.page_size into v_q, v_like, v_raw, v_size
+    from studyhub_private.search_input(p_query, p_limit, p_offset) i;
+    if char_length(v_q) < 2 or v_size = 0 then
+        return jsonb_build_object('items', '[]'::jsonb, 'has_more', false);
+    end if;
+    v_contains := '%' || v_like || '%';
+    -- Trigrams ignore symbols, so queries such as "100%" or "c++" stay literal.
+    v_fuzzy := char_length(v_q) >= 4 and v_q !~ '[^[:alnum:][:space:]]';
+
+    with hits as (
+        select s.id, s.name, s.description, s.is_active, s.created_at,
+               studyhub_private.search_norm(s.name) as n_name,
+               studyhub_private.search_norm(s.description) as n_desc
+        from public.subjects s
+        where s.is_active
+          and (studyhub_private.search_norm(s.name) like v_contains escape '\'
+               or studyhub_private.search_norm(s.description) like v_contains escape '\'
+               or (v_fuzzy and v_q operator(extensions.<%) studyhub_private.search_norm(s.name)))
+    ), ordered as (
+        select h.*, row_number() over (order by
+            case when h.n_name like v_like || '%' escape '\' or h.n_desc like v_like || '%' escape '\' then 1
+                 when h.n_name like v_contains escape '\' or h.n_desc like v_contains escape '\' then 2
+                 else 3 end,
+            (strpos(lower(h.name), v_raw) > 0 or strpos(lower(coalesce(h.description, '')), v_raw) > 0) desc,
+            extensions.word_similarity(v_q, h.n_name) desc,
+            h.name, h.id) as rn
+        from hits h
+    )
+    select jsonb_build_object(
+        'items', coalesce(jsonb_agg(jsonb_build_object(
+                'id', o.id, 'name', o.name, 'description', o.description,
+                'is_active', o.is_active, 'created_at', o.created_at)
+            order by o.rn) filter (where o.rn > p_offset and o.rn <= p_offset + v_size), '[]'::jsonb),
+        'has_more', coalesce(bool_or(o.rn > p_offset + v_size), false) and p_offset + v_size < 100)
+    into v_result
+    from ordered o
+    where o.rn <= p_offset + v_size + 1;
+    return v_result;
+end;
+$$;
+
+create or replace function public.search_posts(p_query text, p_limit integer default 20, p_offset integer default 0)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_q text; v_like text; v_raw text; v_size integer; v_contains text; v_fuzzy boolean;
+    v_result jsonb;
+begin
+    begin
+        perform set_config('pg_trgm.word_similarity_threshold', '0.5', true);
+    exception when others then
+        null;
+    end;
+    select i.q, i.q_like, i.q_raw, i.page_size into v_q, v_like, v_raw, v_size
+    from studyhub_private.search_input(p_query, p_limit, p_offset) i;
+    if char_length(v_q) < 2 or v_size = 0 then
+        return jsonb_build_object('items', '[]'::jsonb, 'has_more', false);
+    end if;
+    v_contains := '%' || v_like || '%';
+    -- Trigrams ignore symbols, so queries such as "100%" or "c++" stay literal.
+    v_fuzzy := char_length(v_q) >= 4 and v_q !~ '[^[:alnum:][:space:]]';
+
+    -- Visibility: the author sees everything; others need an author who is not
+    -- banned, no block either way, and public visibility or an accepted
+    -- friendship. Friend and block sets are computed once per call.
+    with viewer_friends as materialized (
+        select case when f.requester_id = v_actor then f.addressee_id else f.requester_id end as peer_id
+        from public.friendships f
+        where f.status = 'accepted' and (f.requester_id = v_actor or f.addressee_id = v_actor)
+    ), blocked as materialized (
+        select b.blocked_id as peer_id from public.blocks b where b.blocker_id = v_actor
+        union
+        select b.blocker_id from public.blocks b where b.blocked_id = v_actor
+    ), hits as (
+        select p.id, p.title, p.content, p.created_at,
+               studyhub_private.search_norm(p.title) as n_title,
+               studyhub_private.search_norm(p.content) as n_content
+        from public.posts p
+        join public.profiles a on a.id = p.author_id
+        where (studyhub_private.search_norm(p.title) like v_contains escape '\'
+               or studyhub_private.search_norm(p.content) like v_contains escape '\'
+               or (v_fuzzy and v_q operator(extensions.<%) studyhub_private.search_norm(p.title)))
+          and (p.author_id = v_actor
+               or (not a.is_banned
+                   and not exists (select 1 from blocked x where x.peer_id = p.author_id)
+                   and case studyhub_private.post_visibility(p.type)
+                       when 'public' then true
+                       when 'friends' then exists (select 1 from viewer_friends vf where vf.peer_id = p.author_id)
+                       else false
+                   end))
+    ), ordered as (
+        select h.*, row_number() over (order by
+            case when h.n_title like v_like || '%' escape '\' or h.n_content like v_like || '%' escape '\' then 1
+                 when h.n_title like v_contains escape '\' or h.n_content like v_contains escape '\' then 2
+                 else 3 end,
+            (strpos(lower(h.title), v_raw) > 0 or strpos(lower(coalesce(h.content, '')), v_raw) > 0) desc,
+            extensions.word_similarity(v_q, h.n_title) desc,
+            h.created_at desc, h.id) as rn
+        from hits h
+    )
+    -- Build the row JSON only for the returned page.
+    select jsonb_build_object(
+        'items', coalesce(jsonb_agg(to_jsonb(p) order by o.rn)
+            filter (where o.rn > p_offset and o.rn <= p_offset + v_size), '[]'::jsonb),
+        'has_more', coalesce(bool_or(o.rn > p_offset + v_size), false) and p_offset + v_size < 100)
+    into v_result
+    from ordered o
+    join public.posts p on p.id = o.id
+    where o.rn <= p_offset + v_size + 1;
+    return v_result;
+end;
+$$;
+
+create or replace function public.search_documents(p_query text, p_limit integer default 20, p_offset integer default 0)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+set pg_trgm.word_similarity_threshold = '0.5'
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_q text; v_like text; v_raw text; v_size integer; v_contains text; v_fuzzy boolean;
+    v_result jsonb;
+begin
+    select i.q, i.q_like, i.q_raw, i.page_size into v_q, v_like, v_raw, v_size
+    from studyhub_private.search_input(p_query, p_limit, p_offset) i;
+    if char_length(v_q) < 2 or v_size = 0 then
+        return jsonb_build_object('items', '[]'::jsonb, 'has_more', false);
+    end if;
+    v_contains := '%' || v_like || '%';
+    -- Trigrams ignore symbols, so queries such as "100%" or "c++" stay literal.
+    v_fuzzy := char_length(v_q) >= 4 and v_q !~ '[^[:alnum:][:space:]]';
+
+    -- Candidates come from two index-friendly branches (file name, post title);
+    -- the parent post then gets the same visibility rules as search_posts.
+    with viewer_friends as materialized (
+        select case when f.requester_id = v_actor then f.addressee_id else f.requester_id end as peer_id
+        from public.friendships f
+        where f.status = 'accepted' and (f.requester_id = v_actor or f.addressee_id = v_actor)
+    ), blocked as materialized (
+        select b.blocked_id as peer_id from public.blocks b where b.blocker_id = v_actor
+        union
+        select b.blocker_id from public.blocks b where b.blocked_id = v_actor
+    ), candidates as (
+        select f.id from public.post_files f
+        where studyhub_private.search_file_norm(f.file_name) like v_contains escape '\'
+           or (v_fuzzy and v_q operator(extensions.<%) studyhub_private.search_file_norm(f.file_name))
+        union
+        select f.id from public.posts p join public.post_files f on f.post_id = p.id
+        where studyhub_private.search_norm(p.title) like v_contains escape '\'
+    ), hits as (
+        select f.id, f.file_name, f.file_type, f.file_size, f.created_at,
+               p.id as post_id, p.title as post_title, a.display_name as author_display_name,
+               studyhub_private.search_file_norm(f.file_name) as n_file,
+               studyhub_private.search_norm(p.title) as n_title
+        from candidates c
+        join public.post_files f on f.id = c.id
+        join public.posts p on p.id = f.post_id
+        join public.profiles a on a.id = p.author_id
+        where not (coalesce(f.file_type, '') ilike 'image/%'
+                   or f.file_name ~* '\.(png|jpe?g|webp|gif|bmp|heic)$')
+          and (p.author_id = v_actor
+               or (not a.is_banned
+                   and not exists (select 1 from blocked x where x.peer_id = p.author_id)
+                   and case studyhub_private.post_visibility(p.type)
+                       when 'public' then true
+                       when 'friends' then exists (select 1 from viewer_friends vf where vf.peer_id = p.author_id)
+                       else false
+                   end))
+    ), ordered as (
+        select h.*, row_number() over (order by
+            case when h.n_file like v_like || '%' escape '\' or h.n_title like v_like || '%' escape '\' then 1
+                 when h.n_file like v_contains escape '\' or h.n_title like v_contains escape '\' then 2
+                 else 3 end,
+            (strpos(lower(h.file_name), v_raw) > 0 or strpos(lower(h.post_title), v_raw) > 0) desc,
+            extensions.word_similarity(v_q, h.n_file) desc,
+            h.created_at desc, h.id) as rn
+        from hits h
+    )
+    select jsonb_build_object(
+        'items', coalesce(jsonb_agg(jsonb_build_object(
+                'id', o.id, 'file_name', o.file_name, 'file_type', o.file_type, 'file_size', o.file_size,
+                'created_at', o.created_at, 'post_id', o.post_id, 'post_title', o.post_title,
+                'author_display_name', o.author_display_name)
+            order by o.rn) filter (where o.rn > p_offset and o.rn <= p_offset + v_size), '[]'::jsonb),
+        'has_more', coalesce(bool_or(o.rn > p_offset + v_size), false) and p_offset + v_size < 100)
+    into v_result
+    from ordered o
+    where o.rn <= p_offset + v_size + 1;
+    return v_result;
+end;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- Grants. Helpers stay private; index expressions run with the writer's
+-- privileges, so writers of indexed tables need EXECUTE on the normalizers.
+-- ------------------------------------------------------------------------------
+revoke all on function
+    studyhub_private.search_norm(text), studyhub_private.search_file_norm(text),
+    studyhub_private.search_like_escape(text), studyhub_private.search_input(text, integer, integer),
+    studyhub_private.post_visibility(text)
+    from public, anon, authenticated;
+grant execute on function studyhub_private.search_norm(text), studyhub_private.search_file_norm(text)
+    to authenticated, service_role;
+
+revoke all on function
+    public.search_profiles(text, integer, integer), public.search_subjects(text, integer, integer),
+    public.search_posts(text, integer, integer), public.search_documents(text, integer, integer)
+    from public, anon, authenticated;
+grant execute on function
+    public.search_profiles(text, integer, integer), public.search_subjects(text, integer, integer),
+    public.search_posts(text, integer, integer), public.search_documents(text, integer, integer)
+    to authenticated;
+
 notify pgrst, 'reload schema';
 
--- Friend notification RPCs (20261027150000_friend_notifications.sql)
-
--- Friendship RPCs write notification rows; clients read them only through the RPCs below.
+-- =====================================================================
+-- 24. Notification center & delivery (phân hệ 10)
+-- Mirrors migrations 20261027150000_friend_notifications (indexes),
+-- 20261106120000_notification_center and 20261106120100_notification_delivery.
+-- Replaces the section 17 notification policies: clients use RPCs only.
+-- The worker scheduler is enabled separately: supabase/notifications/enable_scheduler.sql.
+-- =====================================================================
 create index if not exists notifications_user_page_idx
     on public.notifications(user_id, created_at desc, id desc);
 create index if not exists notifications_friend_request_idx
     on public.notifications(user_id, actor_id) where type = 'friend_request';
 
+-- Notification center: source identity, preferences, interaction producers and inbox RPCs.
+-- Idempotent so the same body can be mirrored in supabase/schema.sql.
+-- Depends on 20261027_friendship_rpc.sql and 20261027150000_friend_notifications.sql.
+
+-- ---------------------------------------------------------------------------
+-- 1. Source identity on the existing inbox. Legacy rows keep NULL source data:
+--    there is no provable link from (actor, recipient) to one friendship id.
+-- ---------------------------------------------------------------------------
+alter table public.notifications
+  add column if not exists source_kind text,
+  add column if not exists source_id uuid,
+  add column if not exists event_key text,
+  add column if not exists template_version integer not null default 1,
+  add column if not exists opened_at timestamptz;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'notifications_source_kind_check') then
+    alter table public.notifications add constraint notifications_source_kind_check
+      check (source_kind is null or source_kind in ('friendship','like','comment'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'notifications_source_pair_check') then
+    alter table public.notifications add constraint notifications_source_pair_check
+      check ((source_kind is null) = (source_id is null) and (event_key is null or source_id is not null));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'notifications_template_version_check') then
+    alter table public.notifications add constraint notifications_template_version_check
+      check (template_version between 1 and 1000);
+  end if;
+end $$;
+
+-- One inbox row per recipient + event type + source incarnation; legacy rows are exempt.
+create unique index if not exists notifications_event_key_idx
+  on public.notifications(user_id, event_key) where event_key is not null;
+create index if not exists notifications_source_idx
+  on public.notifications(source_kind, source_id) where source_id is not null;
+create index if not exists notifications_actor_idx on public.notifications(actor_id) where actor_id is not null;
+create index if not exists notifications_post_idx on public.notifications(post_id) where post_id is not null;
+create index if not exists notifications_user_unread_idx
+  on public.notifications(user_id, created_at desc, id desc) where not is_read;
+
+-- ---------------------------------------------------------------------------
+-- 2. Private preferences. Missing rows mean enabled (default-on).
+--    notification_recipient_state is the per-recipient lock that serializes
+--    producers and preference changes.
+-- ---------------------------------------------------------------------------
+create schema if not exists studyhub_private;
+revoke all on schema studyhub_private from public, anon, authenticated;
+
+create table if not exists studyhub_private.notification_recipient_state (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+create table if not exists studyhub_private.notification_preferences (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  channel text not null default 'in_app' check (channel = 'in_app'),
+  category text not null check (category in ('friendship','like','comment')),
+  enabled boolean not null,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, channel, category)
+);
+alter table studyhub_private.notification_recipient_state enable row level security;
+alter table studyhub_private.notification_preferences enable row level security;
+revoke all on studyhub_private.notification_recipient_state, studyhub_private.notification_preferences
+  from public, anon, authenticated;
+
+create or replace function studyhub_private.lock_notification_recipient(recipient uuid) returns boolean
+language plpgsql security definer set search_path = '' as $$
+begin
+  insert into studyhub_private.notification_recipient_state(user_id)
+    select id from public.profiles where id = recipient
+    on conflict (user_id) do nothing;
+  perform 1 from studyhub_private.notification_recipient_state where user_id = recipient for update;
+  return found;
+end;
+$$;
+
+create or replace function studyhub_private.notification_preferences_json(recipient uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select jsonb_object_agg(c.category, coalesce(p.enabled, true) order by c.category)
+  from unnest(array['friendship','like','comment']) as c(category)
+  left join studyhub_private.notification_preferences p
+    on p.user_id = recipient and p.channel = 'in_app' and p.category = c.category;
+$$;
+
+create or replace function public.get_my_notification_preferences() returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  return studyhub_private.notification_preferences_json(studyhub_private.friend_actor());
+end;
+$$;
+
+create or replace function public.set_my_notification_preferences(p_category text, p_enabled boolean) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare actor uuid := studyhub_private.friend_actor();
+begin
+  if p_category is null or p_category not in ('friendship','like','comment') or p_enabled is null then
+    raise exception 'invalid preference' using errcode = 'F0001';
+  end if;
+  -- Same lock as producers: a setting applies to every interaction committed after it.
+  perform studyhub_private.lock_notification_recipient(actor);
+  insert into studyhub_private.notification_preferences(user_id, channel, category, enabled)
+    values (actor, 'in_app', p_category, p_enabled)
+    on conflict (user_id, channel, category) do update set enabled = excluded.enabled, updated_at = now();
+  return studyhub_private.notification_preferences_json(actor);
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 3. Visibility helpers shared by producers, lists, counts and mutations.
+-- ---------------------------------------------------------------------------
+-- Mirrors PostTypeUtils.parse: "<category>:<visibility>" or a bare visibility word.
+create or replace function studyhub_private.notification_post_visibility(raw_type text) returns text
+language sql immutable set search_path = '' as $$
+  select case v when 'friends' then 'friends' when 'private' then 'private' else 'public' end
+  from (select case when position(':' in coalesce(raw_type,'')) > 0
+                    then lower(btrim(split_part(raw_type, ':', 2)))
+                    else lower(btrim(coalesce(raw_type,''))) end as v) s;
+$$;
+
+create or replace function studyhub_private.post_viewable(viewer uuid, target_post uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1 from public.posts p join public.profiles a on a.id = p.author_id
+    where p.id = target_post and not a.is_banned
+      and (p.author_id = viewer or (
+        studyhub_private.friend_peer_available(viewer, p.author_id)
+        and case studyhub_private.notification_post_visibility(p.type)
+              when 'private' then false
+              when 'friends' then exists (
+                select 1 from public.friendships f where f.status = 'accepted'
+                  and least(f.requester_id, f.addressee_id) = least(viewer, p.author_id)
+                  and greatest(f.requester_id, f.addressee_id) = greatest(viewer, p.author_id))
+              else true end)));
+$$;
+
+create or replace function studyhub_private.notification_visible(n public.notifications, viewer uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select n.user_id = viewer
+    and exists (select 1 from public.profiles where id = viewer and not is_banned)
+    and (n.actor_id is null or studyhub_private.friend_peer_available(viewer, n.actor_id))
+    and (n.post_id is null or studyhub_private.post_viewable(viewer, n.post_id));
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 4. Producer. Recipients come from source rows, never from client input.
+--    Returns silently on ineligible/suppressed events; raises on bad input so
+--    the business transaction rolls back instead of committing unnotified.
+-- ---------------------------------------------------------------------------
+create or replace function studyhub_private.create_notification(
+  recipient uuid, actor uuid, kind text, p_source_kind text, p_source_id uuid, p_post_id uuid default null
+) returns void language plpgsql security definer set search_path = '' as $$
+declare v_category text; v_enabled boolean;
+begin
+  v_category := case when kind in ('friend_request','friend_accept') then 'friendship'
+                   when kind in ('like','comment') then kind end;
+  if v_category is null or p_source_id is null or p_source_kind is null
+     or p_source_kind <> (case v_category when 'friendship' then 'friendship' else kind end) then
+    raise exception 'invalid notification source' using errcode = 'F0001';
+  end if;
+  if recipient is null or actor is null or recipient = actor then return; end if;
+  if not exists (select 1 from public.profiles where id = actor and not is_banned)
+     or not studyhub_private.friend_peer_available(actor, recipient) then
+    return;
+  end if;
+  if p_post_id is not null and not (
+       exists (select 1 from public.posts p where p.id = p_post_id and p.author_id = recipient)
+       and studyhub_private.post_viewable(actor, p_post_id)) then
+    return;
+  end if;
+  if not studyhub_private.lock_notification_recipient(recipient) then return; end if;
+  select coalesce((select p.enabled from studyhub_private.notification_preferences p
+                   where p.user_id = recipient and p.channel = 'in_app' and p.category = v_category), true)
+    into v_enabled;
+  if not v_enabled then return; end if;
+  insert into public.notifications(user_id, actor_id, type, post_id, source_kind, source_id, event_key, template_version)
+    values (recipient, actor, kind, p_post_id, p_source_kind, p_source_id, kind || ':' || p_source_id::text, 1)
+    on conflict (user_id, event_key) where event_key is not null do nothing;
+end;
+$$;
+
+create or replace function studyhub_private.notify_post_interaction() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare kind text := case tg_table_name when 'likes' then 'like' else 'comment' end; recipient uuid;
+begin
+  if tg_op = 'DELETE' then
+    delete from public.notifications where source_kind = kind and source_id = old.id;
+    return old;
+  end if;
+  -- Replies notify only the post owner in v1; parent-comment authors are not fanned out.
+  select author_id into recipient from public.posts where id = new.post_id;
+  perform studyhub_private.create_notification(recipient, new.user_id, kind, kind, new.id, new.post_id);
+  return new;
+end;
+$$;
+
+-- INSERT/DELETE only: editing a comment never creates another notification.
+drop trigger if exists notifications_like_source on public.likes;
+create trigger notifications_like_source after insert or delete on public.likes
+  for each row execute function studyhub_private.notify_post_interaction();
+drop trigger if exists notifications_comment_source on public.comments;
+create trigger notifications_comment_source after insert or delete on public.comments
+  for each row execute function studyhub_private.notify_post_interaction();
+
+-- ---------------------------------------------------------------------------
+-- 5. Inbox RPCs. Old signatures keep their legacy item shape.
+-- ---------------------------------------------------------------------------
+create or replace function studyhub_private.notification_page(
+  viewer uuid, p_filter text, p_limit integer, p_cursor_created_at timestamptz, p_cursor_id uuid, legacy boolean
+) returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare page_size integer; result jsonb;
+begin
+  if p_filter is null or p_filter not in ('all','unread') or p_limit is null or p_limit <= 0
+     or ((p_cursor_created_at is null) <> (p_cursor_id is null))
+     or (p_cursor_created_at is not null and not isfinite(p_cursor_created_at)) then
+    raise exception 'invalid page input' using errcode = 'F0001';
+  end if;
+  page_size := least(p_limit, 50);
+  with visible as materialized (
+    select n.* from public.notifications n
+    where n.user_id = viewer and studyhub_private.notification_visible(n, viewer)
+  ), candidates as materialized (
+    select * from visible
+    where (p_filter = 'all' or not is_read)
+      and (p_cursor_id is null or (created_at, id) < (p_cursor_created_at, p_cursor_id))
+    order by created_at desc, id desc limit page_size + 1
+  ), page as (
+    select c.*, case when p.id is null then null else jsonb_build_object('id', p.id, 'username', p.username,
+             'display_name', p.display_name, 'avatar_url', p.avatar_url) end as actor
+    from (select * from candidates order by created_at desc, id desc limit page_size) c
+    left join public.profiles p on p.id = c.actor_id
+  )
+  select jsonb_build_object(
+    'items', coalesce((select jsonb_agg(
+        case when legacy then jsonb_build_object('id', id, 'type', type, 'is_read', is_read,
+               'created_at', created_at, 'post_id', post_id, 'actor', actor)
+             else jsonb_build_object('id', id, 'type', type, 'is_read', is_read, 'created_at', created_at,
+               'post_id', post_id, 'actor', actor, 'source_kind', source_kind, 'source_id', source_id,
+               'template_version', template_version, 'opened_at', opened_at) end
+        order by created_at desc, id desc) from page), '[]'::jsonb),
+    'next_cursor', case when (select count(*) from candidates) > page_size then
+        (select jsonb_build_object('created_at', created_at, 'id', id) from page order by created_at, id limit 1)
+      else null end,
+    -- Global visible unread count, independent of filter and page.
+    'unread_count', (select count(*) from visible where not is_read)) into result;
+  return result;
+end;
+$$;
+
+create or replace function public.list_my_notifications_v2(
+  p_filter text default 'all', p_limit integer default 20,
+  p_cursor_created_at timestamptz default null, p_cursor_id uuid default null
+) returns jsonb language plpgsql stable security definer set search_path = '' as $$
+begin
+  return studyhub_private.notification_page(studyhub_private.friend_actor(), p_filter, p_limit,
+    p_cursor_created_at, p_cursor_id, false);
+end;
+$$;
+
+create or replace function public.list_my_notifications(
+  p_limit integer default 20, p_cursor_created_at timestamptz default null, p_cursor_id uuid default null
+) returns jsonb language plpgsql security definer set search_path = '' as $$
+begin
+  return studyhub_private.notification_page(studyhub_private.friend_actor(), 'all', p_limit,
+    p_cursor_created_at, p_cursor_id, true);
+end;
+$$;
+
+-- Mark-all updates only rows visible to this statement's snapshot; later arrivals stay unread.
+create or replace function public.mark_notifications_read(p_ids uuid[] default null) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare actor uuid := studyhub_private.friend_actor(); changed integer;
+begin
+  if p_ids is not null and (cardinality(p_ids) = 0 or cardinality(p_ids) > 100) then
+    raise exception 'invalid ids' using errcode = 'F0001';
+  end if;
+  update public.notifications n set is_read = true
+    where n.user_id = actor and not n.is_read and (p_ids is null or n.id = any(p_ids))
+      and studyhub_private.notification_visible(n, actor);
+  get diagnostics changed = row_count;
+  return changed;
+end;
+$$;
+
+-- First open is recorded once; repeats/retries only keep the row read.
+create or replace function public.open_my_notification(p_id uuid) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare actor uuid := studyhub_private.friend_actor(); opened public.notifications;
+begin
+  if p_id is null then raise exception 'invalid id' using errcode = 'F0001'; end if;
+  update public.notifications n set is_read = true, opened_at = coalesce(n.opened_at, now())
+    where n.id = p_id and n.user_id = actor and studyhub_private.notification_visible(n, actor)
+    returning n.* into opened;
+  if not found then raise exception 'notification unavailable' using errcode = 'F0004'; end if;
+  return jsonb_build_object('id', opened.id, 'type', opened.type, 'post_id', opened.post_id, 'actor_id', opened.actor_id);
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 6. Friendship producers: same guards/transitions, now with source ids,
+--    idempotent event keys and preferences. Legacy rows (source_id NULL)
+--    keep the previous actor/recipient cleanup behavior.
+-- ---------------------------------------------------------------------------
 create or replace function public.send_friend_request(p_target_id uuid) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare actor uuid := studyhub_private.friend_actor(); rel public.friendships; inserted uuid;
 begin
-    if p_target_id is null or p_target_id = actor then
-        raise exception 'invalid target' using errcode = 'F0001';
-    end if;
-    if not studyhub_private.friend_peer_available(actor, p_target_id) then
-        raise exception 'peer unavailable' using errcode = 'F0002';
-    end if;
-    -- Unique index arbitrates concurrent/reversed sends. A concurrent cleanup
-    -- may remove the conflict; retry a bounded number of times with a new snapshot.
-    for attempt in 1..3 loop
-        inserted := null;
-        insert into public.friendships(requester_id, addressee_id, status)
-        values(actor, p_target_id, 'pending') on conflict do nothing returning id into inserted;
-        -- Only a newly created request notifies; repeated sends return the existing state silently.
-        if inserted is not null then
-            insert into public.notifications(user_id, actor_id, type) values (p_target_id, actor, 'friend_request');
-        end if;
-        select * into rel from public.friendships
-        where least(requester_id, addressee_id) = least(actor, p_target_id)
-          and greatest(requester_id, addressee_id) = greatest(actor, p_target_id) for update;
-        if found then return studyhub_private.friend_snapshot(actor, p_target_id); end if;
-    end loop;
-    raise exception 'relationship changed' using errcode = 'F0004';
-exception when foreign_key_violation then
+  if p_target_id is null or p_target_id = actor then
+    raise exception 'invalid target' using errcode = 'F0001';
+  end if;
+  if not studyhub_private.friend_peer_available(actor, p_target_id) then
     raise exception 'peer unavailable' using errcode = 'F0002';
+  end if;
+  for attempt in 1..3 loop
+    inserted := null;
+    insert into public.friendships(requester_id, addressee_id, status)
+      values (actor, p_target_id, 'pending') on conflict do nothing returning id into inserted;
+    if inserted is not null then
+      perform studyhub_private.create_notification(p_target_id, actor, 'friend_request', 'friendship', inserted);
+    end if;
+    select * into rel from public.friendships
+      where least(requester_id, addressee_id) = least(actor, p_target_id)
+        and greatest(requester_id, addressee_id) = greatest(actor, p_target_id) for update;
+    if found then return studyhub_private.friend_snapshot(actor, p_target_id); end if;
+  end loop;
+  raise exception 'relationship changed' using errcode = 'F0004';
+exception when foreign_key_violation then
+  raise exception 'peer unavailable' using errcode = 'F0002';
 end;
 $$;
 
@@ -1010,105 +2534,457 @@ create or replace function studyhub_private.friend_mutate(p_id uuid, action text
 language plpgsql security definer set search_path = '' as $$
 declare actor uuid := studyhub_private.friend_actor(); rel public.friendships; target uuid;
 begin
-    if p_id is null then raise exception 'invalid relationship' using errcode = 'F0001'; end if;
-    select * into rel from public.friendships where id = p_id for update;
-    if not found then raise exception 'relationship unavailable' using errcode = 'F0004'; end if;
-    -- Unknown and unrelated ids deliberately share the same outcome.
-    if actor not in (rel.requester_id, rel.addressee_id) then
-        raise exception 'relationship unavailable' using errcode = 'F0004';
+  if p_id is null then raise exception 'invalid relationship' using errcode = 'F0001'; end if;
+  select * into rel from public.friendships where id = p_id for update;
+  if not found then raise exception 'relationship unavailable' using errcode = 'F0004'; end if;
+  if actor not in (rel.requester_id, rel.addressee_id) then
+    raise exception 'relationship unavailable' using errcode = 'F0004';
+  end if;
+  target := case when actor = rel.requester_id then rel.addressee_id else rel.requester_id end;
+  if action in ('accept','decline') and actor <> rel.addressee_id
+     or action = 'cancel' and actor <> rel.requester_id then
+    raise exception 'action not permitted' using errcode = 'F0003';
+  end if;
+  if action = 'accept' then
+    if not studyhub_private.friend_peer_available(actor, target) then
+      raise exception 'peer unavailable' using errcode = 'F0002';
     end if;
-    target := case when actor = rel.requester_id then rel.addressee_id else rel.requester_id end;
-    if action in ('accept','decline') and actor <> rel.addressee_id
-       or action = 'cancel' and actor <> rel.requester_id then
-        raise exception 'action not permitted' using errcode = 'F0003';
+    if rel.status = 'pending' then
+      update public.friendships set status = 'accepted' where id = rel.id;
+      perform studyhub_private.create_notification(target, actor, 'friend_accept', 'friendship', rel.id);
+      update public.notifications set is_read = true
+        where user_id = actor and actor_id = target and type = 'friend_request' and not is_read
+          and (source_id = rel.id or source_id is null);
     end if;
-    if action = 'accept' then
-        if not studyhub_private.friend_peer_available(actor, target) then
-            raise exception 'peer unavailable' using errcode = 'F0002';
-        end if;
-        if rel.status = 'pending' then
-            update public.friendships set status = 'accepted' where id = rel.id;
-            insert into public.notifications(user_id, actor_id, type) values (target, actor, 'friend_accept');
-            update public.notifications set is_read = true
-            where user_id = actor and actor_id = target and type = 'friend_request' and not is_read;
-        end if;
-        return studyhub_private.friend_snapshot(actor, target);
-    elsif action in ('decline','cancel','remove') then
-        if (action = 'remove' and rel.status <> 'accepted')
-           or (action <> 'remove' and rel.status <> 'pending') then
-            raise exception 'relationship changed' using errcode = 'F0004';
-        end if;
-        delete from public.friendships where id = rel.id;
-        if action = 'cancel' then
-            -- A withdrawn request should not linger in the recipient's notifications.
-            delete from public.notifications
-            where user_id = rel.addressee_id and actor_id = rel.requester_id and type = 'friend_request';
-        elsif action = 'decline' then
-            update public.notifications set is_read = true
-            where user_id = actor and actor_id = target and type = 'friend_request' and not is_read;
-        end if;
-        return jsonb_build_object('target_id',target,'state','none','friendship_id',null);
+    return studyhub_private.friend_snapshot(actor, target);
+  elsif action in ('decline','cancel','remove') then
+    if (action = 'remove' and rel.status <> 'accepted')
+       or (action <> 'remove' and rel.status <> 'pending') then
+      raise exception 'relationship changed' using errcode = 'F0004';
     end if;
-    raise exception 'invalid action' using errcode = 'F0001';
+    delete from public.friendships where id = rel.id;
+    if action = 'cancel' then
+      delete from public.notifications
+        where user_id = rel.addressee_id and actor_id = rel.requester_id and type = 'friend_request'
+          and (source_id = rel.id or source_id is null);
+    elsif action = 'decline' then
+      update public.notifications set is_read = true
+        where user_id = actor and actor_id = target and type = 'friend_request' and not is_read
+          and (source_id = rel.id or source_id is null);
+    end if;
+    return jsonb_build_object('target_id', target, 'state', 'none', 'friendship_id', null);
+  end if;
+  raise exception 'invalid action' using errcode = 'F0001';
 end;
 $$;
 
-create or replace function public.list_my_notifications(
-    p_limit integer default 20,
-    p_cursor_created_at timestamptz default null, p_cursor_id uuid default null
-) returns jsonb language plpgsql security definer set search_path = '' as $$
-declare actor uuid := studyhub_private.friend_actor(); page_size integer; result jsonb;
-begin
-    if p_limit is null or p_limit <= 0
-       or ((p_cursor_created_at is null) <> (p_cursor_id is null))
-       or (p_cursor_created_at is not null and not isfinite(p_cursor_created_at)) then
-        raise exception 'invalid page input' using errcode = 'F0001';
-    end if;
-    page_size := least(p_limit, 50);
-    with visible as (
-        select n.id, n.type, n.is_read, n.created_at, n.post_id,
-          case when p.id is null then null else
-            jsonb_build_object('id',p.id,'username',p.username,'display_name',p.display_name,'avatar_url',p.avatar_url) end as actor
-        from public.notifications n
-        left join public.profiles p on p.id = n.actor_id
-        where n.user_id = actor
-          -- Hide rows from banned or blocked actors, matching the friendship visibility rules.
-          and (n.actor_id is null or (p.id is not null and studyhub_private.friend_peer_available(actor, p.id)))
-    ), candidates as materialized (
-        select * from visible
-        where p_cursor_id is null or (created_at,id) < (p_cursor_created_at,p_cursor_id)
-        order by created_at desc, id desc limit page_size + 1
-    ), page as (select * from candidates order by created_at desc,id desc limit page_size)
-    select jsonb_build_object(
-        'items', coalesce((select jsonb_agg(to_jsonb(page) order by created_at desc,id desc) from page),'[]'::jsonb),
-        'next_cursor', case when (select count(*) from candidates) > page_size then
-           (select jsonb_build_object('created_at',created_at,'id',id) from page order by created_at,id limit 1)
-           else null end,
-        'unread_count', (select count(*) from visible where not is_read)) into result;
-    return result;
-end;
+-- ---------------------------------------------------------------------------
+-- 7. BREAKING: no direct client table access. RPCs are the only data path.
+-- ---------------------------------------------------------------------------
+drop policy if exists "notifications_insert_as_actor" on public.notifications;
+drop policy if exists "notifications_update_own" on public.notifications;
+drop policy if exists "notifications_select_own" on public.notifications;
+revoke all on public.notifications from public, anon, authenticated;
+
+-- Only this change's helpers: a schema-wide revoke would also strip grants other
+-- features rely on (e.g. search_norm, which posts/profiles index expressions call
+-- with the writer's privileges).
+revoke all on function studyhub_private.lock_notification_recipient(uuid),
+  studyhub_private.notification_preferences_json(uuid),
+  studyhub_private.notification_post_visibility(text),
+  studyhub_private.post_viewable(uuid, uuid),
+  studyhub_private.notification_visible(public.notifications, uuid),
+  studyhub_private.create_notification(uuid, uuid, text, text, uuid, uuid),
+  studyhub_private.notify_post_interaction(),
+  studyhub_private.notification_page(uuid, text, integer, timestamptz, uuid, boolean),
+  studyhub_private.friend_mutate(uuid, text)
+  from public, anon, authenticated;
+revoke all on function public.list_my_notifications_v2(text,integer,timestamptz,uuid),
+  public.list_my_notifications(integer,timestamptz,uuid), public.mark_notifications_read(uuid[]),
+  public.open_my_notification(uuid), public.get_my_notification_preferences(),
+  public.set_my_notification_preferences(text,boolean), public.send_friend_request(uuid)
+  from public, anon, authenticated;
+grant execute on function public.list_my_notifications_v2(text,integer,timestamptz,uuid),
+  public.list_my_notifications(integer,timestamptz,uuid), public.mark_notifications_read(uuid[]),
+  public.open_my_notification(uuid), public.get_my_notification_preferences(),
+  public.set_my_notification_preferences(text,boolean), public.send_friend_request(uuid)
+  to authenticated;
+
+-- Notification delivery: transactional outbox, bounded SQL worker with confirmed
+-- private Broadcast publication, retry/dead-letter, invalidations, metrics and
+-- receive-only Realtime authorization. Idempotent; depends on 20261106120000.
+-- The scheduler is NOT enabled here: see supabase/notifications/enable_scheduler.sql.
+
+-- ---------------------------------------------------------------------------
+-- 1. Private storage. Jobs carry no notification content.
+-- ---------------------------------------------------------------------------
+create table if not exists studyhub_private.notification_delivery_jobs (
+  id uuid primary key default gen_random_uuid(),            -- stable event/job identity
+  recipient_id uuid not null references public.profiles(id) on delete cascade,
+  channel text not null default 'in_app' check (channel = 'in_app'),
+  status text not null default 'pending'
+    check (status in ('pending','retry','published','dead_letter','skipped')),
+  attempts integer not null default 0 check (attempts >= 0),
+  last_dispatch_id uuid,                                     -- most recent attempt's correlation id
+  next_attempt_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  published_at timestamptz,
+  safe_error_code text check (safe_error_code is null or safe_error_code ~ '^[a-z0-9_]{1,40}$')
+);
+create index if not exists notification_jobs_due_idx
+  on studyhub_private.notification_delivery_jobs(next_attempt_at, id) where status in ('pending','retry');
+create index if not exists notification_jobs_recipient_idx
+  on studyhub_private.notification_delivery_jobs(recipient_id);
+create index if not exists notification_jobs_completed_idx
+  on studyhub_private.notification_delivery_jobs(published_at, id) where status in ('published','skipped');
+create index if not exists notification_jobs_dead_idx
+  on studyhub_private.notification_delivery_jobs(created_at, id) where status = 'dead_letter';
+
+-- Server-side rate-limit state: last confirmed publication per recipient.
+create table if not exists studyhub_private.notification_dispatch_state (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  last_published_at timestamptz
+);
+-- Pending fan-out of visibility changes (ban / post ownership), expanded in bounded batches.
+create table if not exists studyhub_private.notification_invalidations (
+  scope text not null check (scope in ('actor','post')),
+  source_id uuid not null,
+  cursor_id uuid,
+  primary key (scope, source_id)
+);
+alter table studyhub_private.notification_delivery_jobs enable row level security;
+alter table studyhub_private.notification_dispatch_state enable row level security;
+alter table studyhub_private.notification_invalidations enable row level security;
+revoke all on studyhub_private.notification_delivery_jobs, studyhub_private.notification_dispatch_state,
+  studyhub_private.notification_invalidations from public, anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- 2. Outbox producers: one job per affected recipient per inbox statement, in
+--    the same transaction. Deleted recipients get no job (FK cleanup).
+-- ---------------------------------------------------------------------------
+create or replace function studyhub_private.enqueue_notification(recipient uuid) returns void
+language sql security definer set search_path = '' as $$
+  insert into studyhub_private.notification_delivery_jobs(recipient_id)
+    select id from public.profiles where id = recipient;
 $$;
 
-create or replace function public.mark_notifications_read(p_ids uuid[] default null) returns integer
+create or replace function studyhub_private.notification_rows_changed() returns trigger
 language plpgsql security definer set search_path = '' as $$
-declare actor uuid := studyhub_private.friend_actor(); changed integer;
 begin
-    if p_ids is not null and (cardinality(p_ids) = 0 or cardinality(p_ids) > 100) then
-        raise exception 'invalid ids' using errcode = 'F0001';
+  if tg_op = 'INSERT' then
+    insert into studyhub_private.notification_delivery_jobs(recipient_id)
+      select distinct n.user_id from new_rows n join public.profiles p on p.id = n.user_id;
+  elsif tg_op = 'DELETE' then
+    insert into studyhub_private.notification_delivery_jobs(recipient_id)
+      select distinct o.user_id from old_rows o join public.profiles p on p.id = o.user_id;
+  else
+    insert into studyhub_private.notification_delivery_jobs(recipient_id)
+      select distinct n.user_id from new_rows n join old_rows o on o.id = n.id
+        join public.profiles p on p.id = n.user_id
+      where n is distinct from o;
+  end if;
+  return null;
+end;
+$$;
+drop trigger if exists notification_outbox on public.notifications;
+drop trigger if exists notification_outbox_insert on public.notifications;
+drop trigger if exists notification_outbox_update on public.notifications;
+drop trigger if exists notification_outbox_delete on public.notifications;
+create trigger notification_outbox_insert after insert on public.notifications
+  referencing new table as new_rows for each statement execute function studyhub_private.notification_rows_changed();
+create trigger notification_outbox_update after update on public.notifications
+  referencing new table as new_rows old table as old_rows
+  for each statement execute function studyhub_private.notification_rows_changed();
+create trigger notification_outbox_delete after delete on public.notifications
+  referencing old table as old_rows for each statement execute function studyhub_private.notification_rows_changed();
+
+-- Visibility changes that alter what list/count RPCs return without an inbox write.
+create or replace function studyhub_private.notification_visibility_changed() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_table_name = 'blocks' then
+    if tg_op = 'DELETE' then
+      perform studyhub_private.enqueue_notification(old.blocker_id);
+      perform studyhub_private.enqueue_notification(old.blocked_id);
+    else
+      perform studyhub_private.enqueue_notification(new.blocker_id);
+      perform studyhub_private.enqueue_notification(new.blocked_id);
     end if;
-    -- Null marks everything; ids not owned by the actor are ignored.
-    update public.notifications set is_read = true
-    where user_id = actor and not is_read and (p_ids is null or id = any(p_ids));
-    get diagnostics changed = row_count;
-    return changed;
+  elsif tg_table_name = 'profiles' then
+    insert into studyhub_private.notification_invalidations(scope, source_id) values ('actor', new.id)
+      on conflict (scope, source_id) do update set cursor_id = null;
+    perform studyhub_private.enqueue_notification(new.id);
+  else
+    insert into studyhub_private.notification_invalidations(scope, source_id) values ('post', new.id)
+      on conflict (scope, source_id) do update set cursor_id = null;
+  end if;
+  return null;
+end;
+$$;
+drop trigger if exists notifications_blocks on public.blocks;
+create trigger notifications_blocks after insert or delete on public.blocks
+  for each row execute function studyhub_private.notification_visibility_changed();
+drop trigger if exists notifications_banned on public.profiles;
+create trigger notifications_banned after update of is_banned on public.profiles
+  for each row when (old.is_banned is distinct from new.is_banned)
+  execute function studyhub_private.notification_visibility_changed();
+drop trigger if exists notifications_post_visibility on public.posts;
+create trigger notifications_post_visibility after update of author_id on public.posts
+  for each row when (old.author_id is distinct from new.author_id)
+  execute function studyhub_private.notification_visibility_changed();
+
+-- Expands at most one scope and 100 recipients per worker run.
+create or replace function studyhub_private.expand_notification_invalidations() returns integer
+language plpgsql security definer set search_path = '' as $$
+declare scope_row studyhub_private.notification_invalidations; recipient uuid; last_id uuid; total integer := 0;
+begin
+  select * into scope_row from studyhub_private.notification_invalidations
+    order by scope, source_id limit 1 for update skip locked;
+  if not found then return 0; end if;
+  for recipient in
+    select distinct n.user_id from public.notifications n
+    where ((scope_row.scope = 'actor' and n.actor_id = scope_row.source_id)
+        or (scope_row.scope = 'post' and n.post_id = scope_row.source_id))
+      and (scope_row.cursor_id is null or n.user_id > scope_row.cursor_id)
+    order by n.user_id limit 100
+  loop
+    perform studyhub_private.enqueue_notification(recipient);
+    last_id := recipient; total := total + 1;
+  end loop;
+  if total < 100 then
+    delete from studyhub_private.notification_invalidations
+      where scope = scope_row.scope and source_id = scope_row.source_id;
+  else
+    update studyhub_private.notification_invalidations set cursor_id = last_id
+      where scope = scope_row.scope and source_id = scope_row.source_id;
+  end if;
+  return total;
 end;
 $$;
 
-revoke all on all functions in schema studyhub_private from public, anon, authenticated;
-revoke all on function public.send_friend_request(uuid),
-    public.list_my_notifications(integer,timestamptz,uuid), public.mark_notifications_read(uuid[])
-    from public, anon, authenticated;
-grant execute on function public.send_friend_request(uuid),
-    public.list_my_notifications(integer,timestamptz,uuid), public.mark_notifications_read(uuid[])
-    to authenticated;
+-- ---------------------------------------------------------------------------
+-- 3. Worker-only publication adapter. realtime.send() converts INSERT errors
+--    into WARNINGs, so success is proven only by finding exactly one matching
+--    realtime.messages row for this attempt's fresh dispatch_id in the same
+--    transaction. Managed Realtime objects are not modified.
+-- ---------------------------------------------------------------------------
+create or replace function studyhub_private.publish_notification(recipient uuid, p_dispatch_id uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare expected_topic text := 'notifications:' || recipient::text; total bigint; exact bigint;
+begin
+  if recipient is null or p_dispatch_id is null then
+    raise exception 'invalid dispatch' using errcode = 'N0002';
+  end if;
+  if exists (select 1 from realtime.messages m where m.payload->>'dispatch_id' = p_dispatch_id::text) then
+    raise exception 'broadcast_unconfirmed' using errcode = 'N0001';
+  end if;
+  perform realtime.send(jsonb_build_object('schema_version', 1, 'dispatch_id', p_dispatch_id),
+                        'notifications_changed', expected_topic, true);
+  select count(*),
+         count(*) filter (where m.topic = expected_topic and m.event = 'notifications_changed'
+                            and m.private and m.extension = 'broadcast'
+                            and m.payload->'schema_version' = '1'::jsonb)
+    into total, exact
+    from realtime.messages m where m.payload->>'dispatch_id' = p_dispatch_id::text;
+  if total <> 1 or exact <> 1 then
+    raise exception 'broadcast_unconfirmed' using errcode = 'N0001';
+  end if;
+end;
+$$;
+
+create or replace function studyhub_private.notification_safe_error(state text) returns text
+language sql immutable set search_path = '' as $$
+  select case state when 'N0001' then 'broadcast_unconfirmed' when 'N0002' then 'invalid_dispatch'
+                    when '42501' then 'permission_denied' when '42P01' then 'realtime_schema_missing'
+                    when '42703' then 'realtime_schema_mismatch' else 'sqlstate_' || lower(state) end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 4. Bounded worker: single run (advisory lock), <=100 claimed jobs, time bound,
+--    per-recipient coalescing, 5-second per-recipient interval, 5 attempts.
+-- ---------------------------------------------------------------------------
+create or replace function studyhub_private.dispatch_notifications(
+  p_batch integer default 100, p_time_budget interval default interval '3 seconds'
+) returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  job_ids uuid[]; recipient uuid; ids uuid[]; dispatch uuid; last_sent timestamptz;
+  started timestamptz := clock_timestamp(); published integer := 0; failed integer := 0;
+  deferred integer := 0; skipped integer := 0; claimed integer := 0; err text;
+  min_interval constant interval := interval '5 seconds';
+  max_attempts constant integer := 5;
+begin
+  if not pg_try_advisory_xact_lock(724160611201) then
+    return jsonb_build_object('locked', true);
+  end if;
+  perform studyhub_private.expand_notification_invalidations();
+  select array_agg(j.id) into job_ids from (
+    select id from studyhub_private.notification_delivery_jobs
+    where status in ('pending','retry') and next_attempt_at <= clock_timestamp()
+    order by next_attempt_at, id limit least(greatest(coalesce(p_batch, 100), 1), 100)
+    for update skip locked) j;
+  claimed := coalesce(cardinality(job_ids), 0);
+
+  for recipient in
+    select recipient_id from studyhub_private.notification_delivery_jobs
+    where id = any(job_ids) group by recipient_id order by min(next_attempt_at), recipient_id
+  loop
+    -- Unprocessed claimed jobs stay pending and are released at commit.
+    exit when clock_timestamp() - started > p_time_budget;
+    select array_agg(id) into ids from studyhub_private.notification_delivery_jobs
+      where id = any(job_ids) and recipient_id = recipient;
+
+    if not exists (select 1 from public.profiles where id = recipient and not is_banned) then
+      -- Banned recipients cannot subscribe; nothing to signal. Unban enqueues a fresh job.
+      update studyhub_private.notification_delivery_jobs
+        set status = 'skipped', published_at = clock_timestamp(), safe_error_code = 'recipient_unavailable'
+        where id = any(ids);
+      skipped := skipped + cardinality(ids);
+      continue;
+    end if;
+
+    insert into studyhub_private.notification_dispatch_state(user_id) values (recipient) on conflict do nothing;
+    select last_published_at into last_sent from studyhub_private.notification_dispatch_state
+      where user_id = recipient for update;
+    if last_sent is not null and last_sent + min_interval > clock_timestamp() then
+      -- Throttle: defer (never drop) and coalesce into the next allowed signal.
+      update studyhub_private.notification_delivery_jobs set next_attempt_at = last_sent + min_interval
+        where id = any(ids);
+      deferred := deferred + cardinality(ids);
+      continue;
+    end if;
+
+    dispatch := gen_random_uuid();   -- fresh for every attempt, never reused on retry/requeue
+    begin
+      perform studyhub_private.publish_notification(recipient, dispatch);
+      update studyhub_private.notification_delivery_jobs
+        set status = 'published', attempts = attempts + 1, last_dispatch_id = dispatch,
+            published_at = clock_timestamp(), safe_error_code = null
+        where id = any(ids);
+      update studyhub_private.notification_dispatch_state set last_published_at = clock_timestamp()
+        where user_id = recipient;
+      published := published + cardinality(ids);
+    exception when others then
+      -- The subtransaction (send + confirmation + status) is already rolled back here.
+      err := studyhub_private.notification_safe_error(sqlstate);
+      update studyhub_private.notification_delivery_jobs
+        set attempts = attempts + 1, last_dispatch_id = dispatch, safe_error_code = err,
+            status = case when attempts + 1 >= max_attempts then 'dead_letter' else 'retry' end,
+            next_attempt_at = clock_timestamp()
+              + make_interval(secs => 5 * power(2, least(attempts, 3)) * (1 + random() * 0.2))
+        where id = any(ids);
+      failed := failed + cardinality(ids);
+    end;
+  end loop;
+  return jsonb_build_object('claimed', claimed, 'published', published, 'failed', failed,
+                            'deferred', deferred, 'skipped', skipped);
+end;
+$$;
+
+-- Operator-only replay. Inbox rows are untouched, so replay cannot duplicate notifications.
+create or replace function studyhub_private.requeue_notification_jobs(p_job_ids uuid[] default null, p_limit integer default 100)
+returns integer language plpgsql security definer set search_path = '' as $$
+declare changed integer;
+begin
+  update studyhub_private.notification_delivery_jobs set status = 'pending', attempts = 0,
+      next_attempt_at = now(), safe_error_code = null
+    where id in (select id from studyhub_private.notification_delivery_jobs
+                 where status = 'dead_letter' and (p_job_ids is null or id = any(p_job_ids))
+                 order by created_at, id limit least(greatest(coalesce(p_limit, 100), 1), 1000)
+                 for update skip locked);
+  get diagnostics changed = row_count;
+  return changed;
+end;
+$$;
+
+-- Bounded retention: only completed history older than 7 days. Pending/retry/dead-letter are kept.
+create or replace function studyhub_private.cleanup_notification_jobs(p_limit integer default 1000) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare changed integer;
+begin
+  delete from studyhub_private.notification_delivery_jobs where id in (
+    select id from studyhub_private.notification_delivery_jobs
+    where status in ('published','skipped') and published_at < now() - interval '7 days'
+    order by published_at, id limit least(greatest(coalesce(p_limit, 1000), 1), 5000)
+    for update skip locked);
+  get diagnostics changed = row_count;
+  return changed;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 5. Operator metrics. No user ids, content or credentials.
+-- ---------------------------------------------------------------------------
+create or replace view studyhub_private.notification_health as
+with j as (
+  select
+    count(*) filter (where status = 'pending') as pending,
+    count(*) filter (where status = 'retry') as retry,
+    count(*) filter (where status = 'dead_letter') as dead_letter,
+    coalesce(extract(epoch from now() - min(next_attempt_at)
+      filter (where status in ('pending','retry') and next_attempt_at <= now())), 0)::numeric(12,1) as oldest_due_seconds,
+    coalesce(max(attempts) filter (where status in ('retry','dead_letter')), 0) as max_attempts_open,
+    (avg(extract(epoch from published_at - created_at))
+      filter (where status = 'published' and published_at > now() - interval '1 hour'))::numeric(12,2) as avg_publish_seconds_1h,
+    (percentile_cont(0.95) within group (order by extract(epoch from published_at - created_at))
+      filter (where status = 'published' and published_at > now() - interval '1 hour'))::numeric(12,2) as p95_publish_seconds_1h
+  from studyhub_private.notification_delivery_jobs
+)
+select j.*,
+  (select count(*) from public.notifications where opened_at is not null) as opened_total,
+  (select count(*) from studyhub_private.notification_invalidations) as pending_invalidations,
+  (j.dead_letter > 0 or j.oldest_due_seconds > 60) as alarm
+from j;
+revoke all on studyhub_private.notification_health from public, anon, authenticated, service_role;
+
+-- Only this change's helpers (see the note in 20261106120000).
+revoke all on function studyhub_private.enqueue_notification(uuid),
+  studyhub_private.notification_rows_changed(),
+  studyhub_private.notification_visibility_changed(),
+  studyhub_private.expand_notification_invalidations(),
+  studyhub_private.publish_notification(uuid, uuid),
+  studyhub_private.notification_safe_error(text),
+  studyhub_private.dispatch_notifications(integer, interval),
+  studyhub_private.requeue_notification_jobs(uuid[], integer),
+  studyhub_private.cleanup_notification_jobs(integer)
+  from public, anon, authenticated;
+revoke all on function studyhub_private.dispatch_notifications(integer, interval),
+  studyhub_private.publish_notification(uuid, uuid),
+  studyhub_private.requeue_notification_jobs(uuid[], integer),
+  studyhub_private.cleanup_notification_jobs(integer) from service_role;
+
+-- ---------------------------------------------------------------------------
+-- 6. Receive-only private topics. Clients never publish and never read rows of
+--    other users' topics. Payloads carry only schema_version + dispatch_id.
+-- ---------------------------------------------------------------------------
+drop policy if exists notifications_receive on realtime.messages;
+create policy notifications_receive on realtime.messages for select to authenticated
+  using (extension = 'broadcast'
+    and realtime.topic() = 'notifications:' || (select auth.uid())::text
+    and exists (select 1 from public.profiles p where p.id = (select auth.uid()) and not p.is_banned));
+-- Restrictive guard: no future permissive policy can open another user's notification topic.
+drop policy if exists notifications_receive_guard on realtime.messages;
+create policy notifications_receive_guard on realtime.messages as restrictive for select to authenticated
+  using (coalesce(realtime.topic(), '') not like 'notifications:%'
+    or (extension = 'broadcast'
+        and realtime.topic() = 'notifications:' || (select auth.uid())::text
+        and exists (select 1 from public.profiles p where p.id = (select auth.uid()) and not p.is_banned)));
+drop policy if exists notifications_no_client_send on realtime.messages;
+create policy notifications_no_client_send on realtime.messages as restrictive for insert to authenticated
+  with check (coalesce(realtime.topic(), topic, '') not like 'notifications:%' and topic not like 'notifications:%');
+
+-- Keep unified-search normalizer grants (index expressions on posts/profiles/subjects/
+-- post_files call them as the writing user). Earlier sections revoke every
+-- studyhub_private function; see migration 20261107090000_restore_search_norm_grants.
+grant usage on schema studyhub_private to authenticated, service_role;
+
+do $$
+begin
+  if to_regprocedure('studyhub_private.search_norm(text)') is not null then
+    grant execute on function studyhub_private.search_norm(text) to authenticated, service_role;
+  end if;
+  if to_regprocedure('studyhub_private.search_file_norm(text)') is not null then
+    grant execute on function studyhub_private.search_file_norm(text) to authenticated, service_role;
+  end if;
+end $$;
+
 notify pgrst, 'reload schema';

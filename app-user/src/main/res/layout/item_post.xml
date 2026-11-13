@@ -155,6 +155,15 @@
             android:textColor="@color/text_secondary"
             android:textSize="14sp" />
 
+        <!-- Hashtags -->
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chipGroupPostHashtags"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="6dp"
+            android:visibility="gone" />
+
         <!-- 4. Edge-to-Edge Image Preview (Facebook style) -->
         <FrameLayout
             android:id="@+id/cardPostImagePreview"
@@ -292,14 +301,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="4dp"
-                    android:text="1"
+                    android:text="0"
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp" />
             </LinearLayout>
 
-            <!-- Share Action Button -->
+            <!-- Bookmark Action Button -->
             <LinearLayout
-                android:id="@+id/btnPostShare"
+                android:id="@+id/btnPostBookmark"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
@@ -310,16 +319,18 @@
                 android:orientation="horizontal">
 
                 <ImageView
+                    android:id="@+id/imgPostBookmarkIcon"
                     android:layout_width="18dp"
                     android:layout_height="18dp"
-                    android:src="@drawable/ic_spark"
+                    android:src="@drawable/ic_bookmark_outline"
                     app:tint="@color/text_secondary" />
 
                 <TextView
+                    android:id="@+id/tvPostBookmarkLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
-                    android:text="Chia sẻ"
+                    android:text="Lưu"
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp"
                     android:textStyle="bold" />

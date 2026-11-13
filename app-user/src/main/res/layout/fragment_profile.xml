@@ -126,9 +126,50 @@
                     android:layout_height="wrap_content"
                     android:text="@string/profile_retry"
                     android:visibility="gone" />
+
+                <ProgressBar
+                    android:id="@+id/progressBlock"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnProfileBlock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Chặn người dùng"
+                    android:textColor="@color/text_primary"
+                    app:backgroundTint="@color/border_subtle" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnDirectChat"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Nhắn tin"
+                    app:icon="@drawable/ic_chat"
+                    app:iconGravity="textStart"
+                    app:backgroundTint="@color/primary"
+                    android:textColor="@color/on_primary" />
             </LinearLayout>
 
             <!-- User Posts Section -->
+            <com.google.android.material.tabs.TabLayout
+                android:id="@+id/tabLayoutProfile"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:background="@android:color/transparent"
+                android:visibility="gone"
+                app:tabIndicatorColor="@color/primary"
+                app:tabSelectedTextColor="@color/primary"
+                app:tabTextColor="@color/text_secondary"
+                app:tabMode="fixed"
+                app:tabGravity="fill" />
+
             <TextView
                 android:id="@+id/tvProfilePostsHeader"
                 android:layout_width="match_parent"
