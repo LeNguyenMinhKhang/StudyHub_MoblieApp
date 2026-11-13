@@ -7,7 +7,6 @@ import android.webkit.MimeTypeMap
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.EditorInfo
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -24,9 +23,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
 import com.doan.studyhub.core.data.local.AvatarMode
 import com.doan.studyhub.core.data.local.AvatarSelection
-import com.doan.studyhub.core.data.model.HashtagUtils
 import com.doan.studyhub.core.data.model.Subject
-import com.doan.studyhub.core.data.remote.PostRemoteDataSource
 import com.doan.studyhub.core.data.repository.AuthRepository
 import com.doan.studyhub.core.data.repository.PostRepository
 import com.doan.studyhub.core.data.repository.SubjectRepository
@@ -51,7 +48,6 @@ class PostCreateFragment : Fragment() {
     private var selectedPostType: String = "none"
     private var selectedVisibility: String = com.doan.studyhub.core.data.model.PostTypeUtils.VISIBILITY_PUBLIC
     private val selectedFiles = mutableListOf<SelectedFile>()
-    private val hashtagsList = mutableListOf<String>()
     private lateinit var fileAdapter: AttachedFileAdapter
 
     private var editPostId: String? = null
@@ -117,8 +113,6 @@ class PostCreateFragment : Fragment() {
                 viewLifecycleOwner.lifecycleScope.launch {
                     try {
                         postRepository.deletePostFile(fileToRemove.remoteFileId)
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
                     } catch (e: Exception) {
                         // ignored
                     }
@@ -155,19 +149,6 @@ class PostCreateFragment : Fragment() {
             if (previewFile != null) {
                 selectedFiles.remove(previewFile)
                 updateFileList()
-            }
-        }
-
-        binding.btnAddHashtag.setOnClickListener {
-            addHashtagFromInput()
-        }
-
-        binding.edtPostHashtagInput.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_DONE) {
-                addHashtagFromInput()
-                true
-            } else {
-                false
             }
         }
 
@@ -275,15 +256,8 @@ class PostCreateFragment : Fragment() {
                             )
                         }
                         updateFileList()
-
-                        // Existing hashtags
-                        hashtagsList.clear()
-                        hashtagsList.addAll(detail.hashtags)
-                        renderHashtagChips()
                     }
                 }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),
@@ -466,9 +440,6 @@ class PostCreateFragment : Fragment() {
                         type = finalPostType,
                         subjectId = targetSubjectId
                     )
-                    try {
-                        PostRemoteDataSource().attachHashtags(editPostId!!, hashtagsList)
-                    } catch (_: Exception) {}
                     editPostId!!
                 } else {
                     val created = postRepository.createPost(
@@ -476,8 +447,7 @@ class PostCreateFragment : Fragment() {
                         subjectId = targetSubjectId,
                         type = finalPostType,
                         title = title,
-                        content = content,
-                        hashtags = hashtagsList
+                        content = content
                     )
                     created.id ?: error("Tạo bài viết thất bại")
                 }
@@ -490,8 +460,6 @@ class PostCreateFragment : Fragment() {
                     val uri = selectedFile.uri!!
                     val bytes = try {
                         requireContext().contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
                     } catch (e: Exception) {
                         null
                     }
@@ -503,8 +471,6 @@ class PostCreateFragment : Fragment() {
                                 fileBytes = bytes,
                                 fileType = selectedFile.type
                             )
-                        } catch (e: kotlinx.coroutines.CancellationException) {
-                            throw e
                         } catch (e: Exception) {
                             uploadErrors++
                             android.util.Log.e("PostCreateFragment", "Upload file failed: ${selectedFile.name}", e)
@@ -522,8 +488,6 @@ class PostCreateFragment : Fragment() {
                 Toast.makeText(requireContext(), successMsg, Toast.LENGTH_SHORT).show()
 
                 parentFragmentManager.popBackStack()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),
@@ -553,44 +517,10 @@ class PostCreateFragment : Fragment() {
                     if (sizeIndex != -1) size = cursor.getLong(sizeIndex)
                 }
             }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
         } catch (e: Exception) {
             // fallback
         }
         return Pair(name, size)
-    }
-
-    private fun addHashtagFromInput() {
-        val raw = binding.edtPostHashtagInput.text?.toString().orEmpty()
-        val normalized = HashtagUtils.normalize(raw)
-        if (normalized.isNotBlank()) {
-            if (hashtagsList.contains(normalized)) {
-                Toast.makeText(requireContext(), "Hashtag đã được thêm", Toast.LENGTH_SHORT).show()
-            } else if (hashtagsList.size >= 10) {
-                Toast.makeText(requireContext(), "Tối đa 10 hashtag", Toast.LENGTH_SHORT).show()
-            } else {
-                hashtagsList.add(normalized)
-                binding.edtPostHashtagInput.text?.clear()
-                renderHashtagChips()
-            }
-        }
-    }
-
-    private fun renderHashtagChips() {
-        binding.chipGroupCreateHashtags.removeAllViews()
-        val context = requireContext()
-        hashtagsList.forEach { tag ->
-            val chip = com.google.android.material.chip.Chip(context).apply {
-                text = "#$tag"
-                isCloseIconVisible = true
-                setOnCloseIconClickListener {
-                    hashtagsList.remove(tag)
-                    renderHashtagChips()
-                }
-            }
-            binding.chipGroupCreateHashtags.addView(chip)
-        }
     }
 
     override fun onDestroyView() {

@@ -1,4 +1,3 @@
-
 package com.doan.studyhub.user.ui.subject
 
 import android.os.Bundle
@@ -18,10 +17,10 @@ import com.doan.studyhub.core.data.repository.AuthRepository
 import com.doan.studyhub.core.data.repository.PostRepository
 import com.doan.studyhub.core.data.repository.SubjectRepository
 import com.doan.studyhub.user.R
-import com.doan.studyhub.user.ui.home.Home
 import com.doan.studyhub.user.ui.post.PostAdapter
 import com.doan.studyhub.user.ui.post.PostCreateFragment
 import com.doan.studyhub.user.ui.post.PostDetailFragment
+import com.doan.studyhub.user.ui.home.Home
 import com.doan.studyhub.user.ui.profile.ProfileFragment
 import kotlinx.coroutines.launch
 
@@ -71,8 +70,7 @@ class SubjectDetailFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         nameText = view.findViewById(R.id.txtSubjectDetailName)
-        descriptionText =
-            view.findViewById(R.id.txtSubjectDetailDescription)
+        descriptionText = view.findViewById(R.id.txtSubjectDetailDescription)
         progress = view.findViewById(R.id.progressSubjectDetail)
         errorText = view.findViewById(R.id.txtSubjectDetailError)
         followButton = view.findViewById(R.id.btnFollowSubjectDetail)
@@ -102,125 +100,46 @@ class SubjectDetailFragment : Fragment() {
 
     private fun setupPostAdapter() {
         val currentUserId = authRepository.getCurrentUserIdSync()
-
         postAdapter = PostAdapter(
             fragment = this@SubjectDetailFragment,
             currentUserId = currentUserId,
-
             onPostClick = { detail ->
                 detail.post.id?.let { postId ->
                     parentFragmentManager.beginTransaction()
-                        .replace(
-                            R.id.containerMain,
-                            PostDetailFragment.newInstance(postId)
-                        )
+                        .replace(R.id.containerMain, PostDetailFragment.newInstance(postId))
                         .addToBackStack(null)
                         .commit()
                 }
             },
-
-            onSubjectClick = {},
-
+            onSubjectClick = { },
             onEditClick = { detail ->
                 detail.post.id?.let { postId ->
                     parentFragmentManager.beginTransaction()
-                        .replace(
-                            R.id.containerMain,
-                            PostCreateFragment.newInstance(postId)
-                        )
+                        .replace(R.id.containerMain, PostCreateFragment.newInstance(postId))
                         .addToBackStack(null)
                         .commit()
                 }
             },
-
             onDeleteClick = { detail ->
                 detail.post.id?.let { postId ->
                     deletePost(postId)
                 }
             },
-
             onAuthorClick = { authorId ->
-                (parentFragment as? Home)?.openDetail(
-                    ProfileFragment.forUser(authorId)
-                )
-            },
-
-            // Like / Unlike với Supabase
-            onLikeClick = { postDetail, onResult ->
-                val postId = postDetail.post.id
-
-                if (postId.isNullOrBlank()) {
-                    onResult(
-                        Result.failure(
-                            IllegalStateException(
-                                "Không tìm thấy ID bài viết."
-                            )
-                        )
-                    )
-                } else {
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        try {
-                            val isLiked =
-                                postRepository.toggleLike(postId)
-
-                            onResult(Result.success(isLiked))
-                        } catch (e: kotlinx.coroutines.CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            onResult(Result.failure(e))
-                        }
-                    }
-                }
-            },
-
-            onBookmarkClick = { postDetail, onResult ->
-                val postId = postDetail.post.id
-                if (postId.isNullOrBlank()) {
-                    onResult(
-                        Result.failure(
-                            IllegalStateException("Không tìm thấy ID bài viết.")
-                        )
-                    )
-                } else {
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        try {
-                            val isSaved = postRepository.toggleSavePost(postId)
-                            onResult(Result.success(isSaved))
-                        } catch (e: kotlinx.coroutines.CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            onResult(Result.failure(e))
-                        }
-                    }
-                }
-            },
-
-            onHashtagClick = { tag ->
-                (parentFragment as? Home)?.openSearch(
-                    query = "#$tag",
-                    tab = com.doan.studyhub.core.data.model.SearchTab.POSTS
-                )
+                (parentFragment as? Home)?.openDetail(ProfileFragment.forUser(authorId))
             }
         )
 
-        recyclerView.layoutManager =
-            LinearLayoutManager(requireContext())
-
+        recyclerView.layoutManager = LinearLayoutManager(requireContext())
         recyclerView.adapter = postAdapter
     }
 
     private fun loadSubjectPosts() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val posts = postRepository.getPosts(
-                    subjectId = subjectId
-                )
-
+                val posts = postRepository.getPosts(subjectId = subjectId)
                 postAdapter.submitList(posts)
                 emptyText.isVisible = posts.isEmpty()
-
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
             } catch (e: Exception) {
                 // Ignore error in subject detail posts
             }
@@ -231,23 +150,10 @@ class SubjectDetailFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 postRepository.deletePost(postId)
-
-                Toast.makeText(
-                    requireContext(),
-                    "Đã xóa bài viết",
-                    Toast.LENGTH_SHORT
-                ).show()
-
+                Toast.makeText(requireContext(), "Đã xóa bài viết", Toast.LENGTH_SHORT).show()
                 loadSubjectPosts()
-
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
             } catch (e: Exception) {
-                Toast.makeText(
-                    requireContext(),
-                    "Không thể xóa bài viết: ${e.message}",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(requireContext(), "Không thể xóa bài viết: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -259,22 +165,17 @@ class SubjectDetailFragment : Fragment() {
             followButton.isEnabled = false
 
             try {
-                val subject =
-                    subjectRepository.getSubjectById(subjectId)
+                val subject = subjectRepository.getSubjectById(subjectId)
 
                 if (subject == null) {
-                    showError(
-                        "Môn học không tồn tại hoặc đã ngừng hoạt động."
-                    )
+                    showError("Môn học không tồn tại hoặc đã ngừng hoạt động.")
                     return@launch
                 }
 
                 nameText.text = subject.name
-
                 descriptionText.text =
-                    subject.description?.takeIf {
-                        it.isNotBlank()
-                    } ?: "Môn học chưa có mô tả."
+                    subject.description?.takeIf { it.isNotBlank() }
+                        ?: "Môn học chưa có mô tả."
 
                 val userId = authRepository.getCurrentUserId()
 
@@ -285,14 +186,8 @@ class SubjectDetailFragment : Fragment() {
                 }
 
                 updateFollowButton()
-
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
             } catch (e: Exception) {
-                showError(
-                    "Không thể tải chi tiết môn học: ${e.message.orEmpty()}"
-                )
-
+                showError("Không thể tải chi tiết môn học: ${e.message.orEmpty()}")
             } finally {
                 progress.visibility = View.GONE
                 followButton.isEnabled = true
@@ -317,30 +212,20 @@ class SubjectDetailFragment : Fragment() {
 
             try {
                 if (isFollowed) {
-                    subjectRepository.unfollowSubject(
-                        userId,
-                        subjectId
-                    )
+                    subjectRepository.unfollowSubject(userId, subjectId)
                     isFollowed = false
                 } else {
-                    subjectRepository.followSubject(
-                        userId,
-                        subjectId
-                    )
+                    subjectRepository.followSubject(userId, subjectId)
                     isFollowed = true
                 }
 
                 updateFollowButton()
-
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
             } catch (e: Exception) {
                 Toast.makeText(
                     requireContext(),
                     "Thao tác thất bại: ${e.message.orEmpty()}",
                     Toast.LENGTH_LONG
                 ).show()
-
             } finally {
                 followButton.isEnabled = true
             }

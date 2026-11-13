@@ -50,8 +50,6 @@ object AvatarImageLoader {
         return try {
             val uri = Uri.parse(url)
             uri.scheme == "https" && !uri.host.isNullOrBlank()
-        } catch (cancelled: kotlinx.coroutines.CancellationException) {
-            throw cancelled
         } catch (_: Exception) {
             false
         }
