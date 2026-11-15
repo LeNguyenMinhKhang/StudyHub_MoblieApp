@@ -18,8 +18,20 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
+import com.doan.studyhub.core.data.model.PostReactionSummary
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import com.doan.studyhub.core.data.model.PostReactor
+import kotlinx.serialization.decodeFromString
+
 import java.util.UUID
 
 class PostRemoteDataSource {
@@ -162,7 +174,11 @@ class PostRemoteDataSource {
             .filter { it.isNotBlank() }
 
         // Lấy thông tin Like
-        val likeSummary = getLikeSummary(postIds, currentUserId)
+        val reactionSummaries = if (!currentUserId.isNullOrBlank()) {
+            getPostReactionSummaries(postIds)
+        } else {
+            emptyMap()
+        }
 
         // Lấy số lượng bình luận của từng bài viết
         val commentCounts = getCommentCounts(postIds)
@@ -317,17 +333,17 @@ class PostRemoteDataSource {
 
         // Kết hợp dữ liệu bài viết
         return posts.map { post ->
-            val (likeCount, isLiked) = post.id
-                ?.let { likeSummary[it] }
-                ?: (0 to false)
+            val summary = post.id?.let { reactionSummaries[it] }
 
             PostDetail(
                 post = post,
                 author = authors[post.authorId],
                 subject = subjects[post.subjectId],
                 files = files[post.id].orEmpty(),
-                likeCount = likeCount,
-                isLikedByCurrentUser = isLiked,
+                likeCount = summary?.totalCount ?: 0,
+                isLikedByCurrentUser = summary?.currentUserReaction == "like",
+                reactionCounts = summary?.countsByType ?: emptyMap(),
+                currentUserReaction = summary?.currentUserReaction,
                 commentCount = commentCounts[post.id] ?: 0,
                 isSavedByCurrentUser = post.id?.let { savedPostIds.contains(it) } ?: false,
                 hashtags = post.id?.let { hashtagsByPostId[it] }.orEmpty()
@@ -335,6 +351,7 @@ class PostRemoteDataSource {
         }
     }
 
+    // Lấy chi tiết bài viết
     // Lấy chi tiết bài viết
     suspend fun getPostDetail(postId: String): PostDetail? {
 
@@ -445,13 +462,12 @@ class PostRemoteDataSource {
             emptyList()
         }
 
-        // Lấy thông tin Like
-        val likeSummary = getLikeSummary(
-            postIds = listOf(postId),
-            currentUserId = currentUserId
-        )
-
-        val (likeCount, isLiked) = likeSummary[postId] ?: (0 to false)
+        // Lấy thông tin reaction
+        val reactionSummary = if (!currentUserId.isNullOrBlank()) {
+            getPostReactionSummaries(listOf(postId))[postId]
+        } else {
+            null
+        }
 
         // Lấy số lượng bình luận
         val commentCount = getCommentCounts(listOf(postId))[postId] ?: 0
@@ -461,12 +477,37 @@ class PostRemoteDataSource {
             author = author,
             subject = subject,
             files = files,
-            likeCount = likeCount,
-            isLikedByCurrentUser = isLiked,
+            likeCount = reactionSummary?.totalCount ?: 0,
+            isLikedByCurrentUser = reactionSummary?.currentUserReaction == "like",
+            reactionCounts = reactionSummary?.countsByType ?: emptyMap(),
+            currentUserReaction = reactionSummary?.currentUserReaction,
             commentCount = commentCount
         )
     }
+    suspend fun getPostReactors(
+        postId: String,
+        reactionType: String? = null,
+        limit: Int = 50,
+        offset: Int = 0
+    ): List<PostReactor> {
+        require(limit in 1..100) { "limit phải nằm trong khoảng 1..100" }
+        require(offset >= 0) { "offset không hợp lệ" }
 
+        val currentUserId = SupabaseClient.client.auth.currentUserOrNull()?.id
+            ?: throw IllegalStateException("Bạn cần đăng nhập để xem danh sách reaction.")
+
+        val response = postgrest.rpc(
+            function = "get_post_reactors",
+            parameters = buildJsonObject {
+                put("p_post_id", postId)
+                put("p_reaction_type", reactionType)
+                put("p_limit", limit)
+                put("p_offset", offset)
+            }
+        )
+
+        return Json.decodeFromString<List<PostReactor>>(response.data)
+    }
     // Đếm số bình luận của từng bài viết
     // Bao gồm bình luận gốc và các câu trả lời.
     private suspend fun getCommentCounts(
@@ -656,71 +697,136 @@ class PostRemoteDataSource {
         postIds: List<String>,
         currentUserId: String?
     ): Map<String, Pair<Int, Boolean>> {
+        if (postIds.isEmpty() || currentUserId.isNullOrBlank()) {
+            return emptyMap()
+        }
 
-        if (postIds.isEmpty()) return emptyMap()
+        val summaries = mutableMapOf<String, Pair<Int, Boolean>>()
 
-        val likes = postgrest["likes"]
-            .select {
-                filter {
-                    isIn("post_id", postIds)
+        postIds.distinct().chunked(200).forEach { batch ->
+            val response = SupabaseClient.client.postgrest.rpc(
+                function = "get_post_reaction_summaries",
+                parameters = buildJsonObject {
+                    putJsonArray("p_post_ids") {
+                        batch.forEach { add(it) }
+                    }
+                }
+            )
+
+            val rows = Json.parseToJsonElement(response.data).jsonArray
+
+            rows.forEach { element ->
+                val row = element.jsonObject
+
+                val postId = row["post_id"]
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+                    .orEmpty()
+
+                val totalCount = row["total_count"]
+                    ?.jsonPrimitive
+                    ?.longOrNull
+                    ?.toInt() ?: 0
+
+                val currentReaction = row["current_user_reaction"]
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+
+                if (postId.isNotBlank()) {
+                    summaries[postId] = totalCount to (currentReaction == "like")
                 }
             }
-            .decodeList<Like>()
+        }
 
-        return likes
-            .groupBy { it.postId }
-            .mapValues { (_, postLikes) ->
+        return summaries
+    }
 
-                val likeCount = postLikes.size
 
-                val isLiked = !currentUserId.isNullOrBlank() &&
-                        postLikes.any { it.userId == currentUserId }
+    //Reaction
+    suspend fun getPostReactionSummaries(
+        postIds: List<String>
+    ): Map<String, PostReactionSummary> {
+        if (postIds.isEmpty()) return emptyMap()
 
-                Pair(likeCount, isLiked)
+        val currentUserId = SupabaseClient.client.auth.currentUserOrNull()?.id
+            ?: throw IllegalStateException("Bạn cần đăng nhập để xem reaction.")
+
+        val result = mutableMapOf<String, PostReactionSummary>()
+
+        postIds.distinct().chunked(200).forEach { batch ->
+            val response = postgrest.rpc(
+                function = "get_post_reaction_summaries",
+                parameters = buildJsonObject {
+                    putJsonArray("p_post_ids") {
+                        batch.forEach { add(it) }
+                    }
+                }
+            )
+
+            val rows = Json.parseToJsonElement(response.data).jsonArray
+
+            rows.forEach { element ->
+                val row = element.jsonObject
+                val postId = row["post_id"]?.jsonPrimitive?.contentOrNull
+                    ?: return@forEach
+
+                val countsObject = row["counts_by_type"]?.jsonObject
+                val counts = listOf("like", "love", "haha", "sad", "angry")
+                    .associateWith { type ->
+                        countsObject?.get(type)?.jsonPrimitive?.longOrNull
+                            ?.toInt() ?: 0
+                    }
+
+                result[postId] = PostReactionSummary(
+                    postId = postId,
+                    totalCount = row["total_count"]?.jsonPrimitive
+                        ?.longOrNull?.toInt() ?: 0,
+                    countsByType = counts,
+                    currentUserReaction = row["current_user_reaction"]
+                        ?.jsonPrimitive?.contentOrNull
+                )
             }
+        }
+
+        return result
     }
 
     // Like / Unlike bài viết
     suspend fun toggleLike(postId: String): Boolean {
+        return setPostReaction(postId, "like") == "like"
+    }
+
+    // 5 cảm xúc
+    suspend fun setPostReaction(
+        postId: String,
+        reactionType: String?
+    ): String? {
 
         val currentUserId = SupabaseClient.client.auth
             .currentUserOrNull()?.id
             ?: throw IllegalStateException(
-                "Bạn cần đăng nhập để Like bài viết."
+                "Bạn cần đăng nhập để bày tỏ cảm xúc."
             )
 
-        val existingLike = postgrest["likes"]
-            .select {
-                filter {
-                    eq("post_id", postId)
-                    eq("user_id", currentUserId)
-                }
-            }
-            .decodeList<Like>()
-            .firstOrNull()
-
-        return if (existingLike != null) {
-
-            postgrest["likes"].delete {
-                filter {
-                    eq("post_id", postId)
-                    eq("user_id", currentUserId)
-                }
-            }
-
-            false
-
-        } else {
-
-            postgrest["likes"].insert(
-                CreateLikeRequest(
-                    postId = postId,
-                    userId = currentUserId
-                )
-            )
-
-            true
+        require(
+            reactionType == null ||
+                    reactionType in listOf("like", "love", "haha", "sad", "angry")
+        ) {
+            "Loại cảm xúc không hợp lệ."
         }
+
+        val response = postgrest.rpc(
+            function = "set_post_reaction",
+            parameters = buildJsonObject {
+                put("p_post_id", postId)
+                put("p_reaction_type", reactionType)
+            }
+        )
+
+        return response.data
+            .trim()
+            .removeSurrounding("\"")
+            .takeUnless { it == "null" || it.isBlank() }
     }
 
     // Toggle lưu / bỏ lưu bài viết

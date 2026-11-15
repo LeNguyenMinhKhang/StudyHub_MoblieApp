@@ -16,6 +16,9 @@ data class PostDetail(
     val likeCount: Int = 0,
     val isLikedByCurrentUser: Boolean = false,
 
+    val reactionCounts: Map<String, Int> = emptyMap(),
+    val currentUserReaction: String? = null,
+
     // Tổng số bình luận và câu trả lời
     val commentCount: Int = 0,
 
