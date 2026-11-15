@@ -1,13 +1,14 @@
 
 package com.doan.studyhub.user.ui.post
 
-import com.doan.studyhub.user.R
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
 import com.doan.studyhub.core.data.model.CommentWithAuthor
+import com.doan.studyhub.user.R
 import com.doan.studyhub.user.databinding.ItemCommentBinding
 import com.doan.studyhub.user.ui.profile.AvatarImageLoader
 import java.text.SimpleDateFormat
@@ -19,13 +20,29 @@ class CommentAdapter(
     private val onReplyClick: (CommentWithAuthor) -> Unit = {},
     private val onEditClick: (CommentWithAuthor) -> Unit = {},
     private val onDeleteClick: (CommentWithAuthor) -> Unit = {},
-    private val onMarkBestAnswerClick: (CommentWithAuthor) -> Unit = {}
+    private val onMarkBestAnswerClick: (CommentWithAuthor) -> Unit = {},
+    private val onReactionClick: (CommentWithAuthor, String) -> Unit = { _, _ -> },
+    private val onReactionSummaryClick: (CommentWithAuthor) -> Unit = {}
 ) : RecyclerView.Adapter<CommentAdapter.CommentViewHolder>() {
 
     private val items = mutableListOf<CommentWithAuthor>()
 
     private var currentUserId: String? = null
     private var postOwnerId: String? = null
+
+    private data class ReactionOption(
+        val type: String,
+        val emoji: String,
+        val label: String
+    )
+
+    private val reactions = listOf(
+        ReactionOption("like", "👍", "Thích"),
+        ReactionOption("love", "❤️", "Yêu thích"),
+        ReactionOption("haha", "😂", "Haha"),
+        ReactionOption("sad", "😢", "Buồn"),
+        ReactionOption("angry", "😡", "Phẫn nộ")
+    )
 
     inner class CommentViewHolder(
         val binding: ItemCommentBinding
@@ -53,12 +70,8 @@ class CommentAdapter(
         val binding = holder.binding
 
         binding.tvCommentAuthor.text = when {
-            !author?.displayName.isNullOrBlank() ->
-                author?.displayName
-
-            !author?.username.isNullOrBlank() ->
-                "@${author?.username}"
-
+            !author?.displayName.isNullOrBlank() -> author?.displayName
+            !author?.username.isNullOrBlank() -> "@${author?.username}"
             else -> "Người dùng"
         }
 
@@ -71,12 +84,9 @@ class CommentAdapter(
             remoteUrl = author?.avatarUrl
         )
 
-        // Hiển thị nhãn câu trả lời hay nhất.
         binding.tvBestAnswer.visibility =
             if (comment.isBestAnswer) View.VISIBLE else View.GONE
 
-        // Ưu tiên nền xanh cho câu trả lời hay nhất.
-        // Câu trả lời thông thường sử dụng nền trung tính.
         when {
             comment.isBestAnswer -> {
                 binding.root.setBackgroundResource(
@@ -95,21 +105,18 @@ class CommentAdapter(
             }
         }
 
-
-
-        // Thụt câu trả lời vào bằng khoảng cách từ avatar
-        // đến chữ "Trả lời" của bình luận gốc.
+        val density = binding.root.resources.displayMetrics.density
         val indent = if (comment.parentId != null) {
-            (48 * binding.root.resources.displayMetrics.density).toInt()
+            (48 * density).toInt()
         } else {
             0
         }
 
         binding.root.setPaddingRelative(
             indent,
-            (10 * binding.root.resources.displayMetrics.density).toInt(),
+            (10 * density).toInt(),
             binding.root.paddingEnd,
-            (10 * binding.root.resources.displayMetrics.density).toInt()
+            (10 * density).toInt()
         )
 
         val isCommentOwner =
@@ -120,20 +127,17 @@ class CommentAdapter(
             !postOwnerId.isNullOrBlank() &&
                     currentUserId == postOwnerId
 
-        // Người viết bình luận được sửa và xóa.
         binding.btnEditComment.visibility =
             if (isCommentOwner) View.VISIBLE else View.GONE
 
         binding.btnDeleteComment.visibility =
             if (isCommentOwner || isPostOwner) View.VISIBLE else View.GONE
 
-        // Chủ bài viết được chọn bình luận hoặc câu trả lời hay nhất.
         binding.btnMarkBestAnswer.visibility =
-            if (isPostOwner) {
-                View.VISIBLE
-            } else {
-                View.GONE
-            }
+            if (isPostOwner) View.VISIBLE else View.GONE
+
+        binding.btnMarkBestAnswer.text =
+            if (comment.isBestAnswer) "Bỏ chọn hay nhất" else "Chọn hay nhất"
 
         binding.btnReplyComment.setOnClickListener {
             onReplyClick(item)
@@ -150,6 +154,70 @@ class CommentAdapter(
         binding.btnMarkBestAnswer.setOnClickListener {
             onMarkBestAnswerClick(item)
         }
+
+        bindReaction(binding, item)
+    }
+
+    private fun bindReaction(
+        binding: ItemCommentBinding,
+        item: CommentWithAuthor
+    ) {
+        val selectedOption = reactions.firstOrNull {
+            it.type == item.currentUserReaction
+        }
+
+        binding.btnCommentReaction.text = selectedOption?.let {
+            "${it.emoji} ${it.label}"
+        } ?: "👍 Thích"
+
+        binding.btnCommentReaction.setTextColor(
+            if (selectedOption != null) {
+                0xFF1877F2.toInt()
+            } else {
+                0xFF666666.toInt()
+            }
+        )
+
+        binding.btnCommentReaction.setOnClickListener {
+            onReactionClick(item, "like")
+        }
+
+        binding.btnCommentReaction.setOnLongClickListener {
+            showReactionPicker(item)
+            true
+        }
+
+        val countText = reactions.mapNotNull { option ->
+            val count = item.reactionCounts[option.type] ?: 0
+            if (count > 0) "${option.emoji} $count" else null
+        }.joinToString("  ")
+
+        binding.tvCommentReactionSummary.text =
+            if (item.reactionCount > 0) {
+                "$countText   ·   ${item.reactionCount}"
+            } else {
+                ""
+            }
+
+        binding.tvCommentReactionSummary.visibility =
+            if (item.reactionCount > 0) View.VISIBLE else View.GONE
+
+        binding.tvCommentReactionSummary.setOnClickListener {
+            onReactionSummaryClick(item)
+        }
+    }
+
+    private fun showReactionPicker(item: CommentWithAuthor) {
+        val labels = reactions.map {
+            "${it.emoji}  ${it.label}"
+        }.toTypedArray()
+
+        AlertDialog.Builder(fragment.requireContext())
+            .setTitle("Chọn cảm xúc")
+            .setItems(labels) { _, which ->
+                onReactionClick(item, reactions[which].type)
+            }
+            .show()
     }
 
     override fun getItemCount(): Int = items.size

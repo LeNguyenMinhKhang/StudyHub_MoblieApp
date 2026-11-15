@@ -22,6 +22,9 @@ import com.doan.studyhub.core.data.repository.AuthRepository
 import com.doan.studyhub.user.R
 import com.doan.studyhub.user.databinding.ItemPostBinding
 import com.doan.studyhub.user.ui.profile.AvatarImageLoader
+import androidx.appcompat.app.AlertDialog
+import com.doan.studyhub.core.data.model.PostReactionSummary
+import com.doan.studyhub.core.data.repository.PostRepository
 
 class PostAdapter(
     private val fragment: Fragment,
@@ -95,9 +98,9 @@ class PostAdapter(
     }
 
     // Cập nhật trạng thái Like sau khi Supabase trả kết quả
-    private fun updatePostLike(
+    private fun updatePostReaction(
         postId: String,
-        isLiked: Boolean
+        summary: PostReactionSummary
     ) {
         val index = posts.indexOfFirst {
             it.post.id == postId
@@ -106,17 +109,12 @@ class PostAdapter(
         if (index == -1) return
 
         val oldPost = posts[index]
-        val oldIsLiked = oldPost.isLikedByCurrentUser
-
-        val newLikeCount = when {
-            oldIsLiked == isLiked -> oldPost.likeCount
-            isLiked -> oldPost.likeCount + 1
-            else -> (oldPost.likeCount - 1).coerceAtLeast(0)
-        }
 
         posts[index] = oldPost.copy(
-            likeCount = newLikeCount,
-            isLikedByCurrentUser = isLiked
+            likeCount = summary.totalCount,
+            isLikedByCurrentUser = summary.currentUserReaction == "like",
+            reactionCounts = summary.countsByType,
+            currentUserReaction = summary.currentUserReaction
         )
 
         notifyItemChanged(index)
@@ -387,87 +385,60 @@ class PostAdapter(
             }
 
             // Like: sử dụng dữ liệu thật từ PostDetail
+            // Reactions: 5 cảm xúc
             val postId = post.id.orEmpty()
-            val isLiked = item.isLikedByCurrentUser
 
             binding.tvPostLikeCount.text = item.likeCount.toString()
             binding.tvPostCommentCount.text = item.commentCount.toString()
-            updateLikeUi(isLiked)
+
+            updateReactionUi(item.currentUserReaction)
 
             binding.btnPostLike.isEnabled =
-                postId.isNotBlank() &&
-                        !pendingLikePostIds.contains(postId)
+                postId.isNotBlank() && !pendingLikePostIds.contains(postId)
 
             binding.btnPostLike.setOnClickListener {
-                if (postId.isBlank()) return@setOnClickListener
-
-                if (pendingLikePostIds.contains(postId)) {
-                    return@setOnClickListener
+                if (postId.isNotBlank()) {
+                    performPostReaction(postId, "like")
                 }
+            }
 
-                val likeCallback = onLikeClick
-
-                if (likeCallback == null) {
-                    Toast.makeText(
-                        fragment.requireContext(),
-                        "Chức năng Like chưa được kết nối.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-                    return@setOnClickListener
+            binding.btnPostLike.setOnLongClickListener {
+                if (postId.isNotBlank()) {
+                    showReactionPicker(it, postId)
                 }
+                true
+            }
 
-                pendingLikePostIds.add(postId)
-                binding.btnPostLike.isEnabled = false
+// Hiển thị thống kê các cảm xúc
+            val reactionEmojis = listOf(
+                "like" to "👍",
+                "love" to "❤️",
+                "haha" to "😂",
+                "sad" to "😢",
+                "angry" to "😡"
+            )
 
-                likeCallback(item) { result ->
-                    pendingLikePostIds.remove(postId)
+            val summaryText = reactionEmojis.mapNotNull { (type, emoji) ->
+                val count = item.reactionCounts[type] ?: 0
+                if (count > 0) "$emoji $count" else null
+            }.joinToString("   ")
 
-                    when {
-                        result.isSuccess -> {
-                            val newLiked = result.getOrThrow()
+            binding.tvPostReactionSummary.isVisible =
+                item.likeCount > 0 && summaryText.isNotBlank()
 
-                            updatePostLike(
-                                postId = postId,
-                                isLiked = newLiked
-                            )
+            binding.tvPostReactionSummary.text = summaryText
 
-                            if (newLiked) {
-                                binding.imgPostLikeIcon.animate()
-                                    .scaleX(1.3f)
-                                    .scaleY(1.3f)
-                                    .setDuration(120)
-                                    .withEndAction {
-                                        binding.imgPostLikeIcon.animate()
-                                            .scaleX(1.0f)
-                                            .scaleY(1.0f)
-                                            .setDuration(120)
-                                            .start()
-                                    }
-                                    .start()
-                            }
-                        }
-
-                        result.isFailure -> {
-                            val error = result.exceptionOrNull()
-
-                            Toast.makeText(
-                                fragment.requireContext(),
-                                error?.message
-                                    ?: "Không thể thực hiện Like. Vui lòng thử lại.",
-                                Toast.LENGTH_SHORT
-                            ).show()
-
-                            val index = posts.indexOfFirst {
-                                it.post.id == postId
-                            }
-
-                            if (index != -1) {
-                                notifyItemChanged(index)
-                            }
-                        }
-                    }
+            binding.tvPostReactionSummary.setOnClickListener {
+                if (postId.isNotBlank() && item.likeCount > 0) {
+                    showReactionFilter(it, postId)
                 }
+            }
+
+            binding.tvPostReactionSummary.setOnLongClickListener {
+                if (postId.isNotBlank() && item.likeCount > 0) {
+                    showReactionFilter(it, postId)
+                }
+                true
             }
 
             // Comment
@@ -531,6 +502,229 @@ class PostAdapter(
             }
         }
 
+        private fun performPostReaction(
+            postId: String,
+            reactionType: String
+        ) {
+            if (pendingLikePostIds.contains(postId)) return
+
+            val context = fragment.context ?: return
+
+            pendingLikePostIds.add(postId)
+            binding.btnPostLike.isEnabled = false
+
+            fragment.lifecycleScope.launch {
+                try {
+                    val repository = PostRepository()
+
+                    repository.setPostReaction(
+                        postId = postId,
+                        reactionType = reactionType
+                    )
+
+                    val summary = repository.getPostReactionSummaries(
+                        listOf(postId)
+                    )[postId] ?: PostReactionSummary(
+                        postId = postId,
+                        totalCount = 0,
+                        countsByType = mapOf(
+                            "like" to 0,
+                            "love" to 0,
+                            "haha" to 0,
+                            "sad" to 0,
+                            "angry" to 0
+                        ),
+                        currentUserReaction = null
+                    )
+
+                    updatePostReaction(postId, summary)
+
+                } catch (e: Exception) {
+                    if (fragment.isAdded) {
+                        Toast.makeText(
+                            fragment.requireContext(),
+                            e.message ?: "Không thể cập nhật cảm xúc. Vui lòng thử lại.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                } finally {
+                    pendingLikePostIds.remove(postId)
+
+                    val index = posts.indexOfFirst {
+                        it.post.id == postId
+                    }
+
+                    if (index != -1) {
+                        notifyItemChanged(index)
+                    }
+                }
+            }
+        }
+
+        private fun showReactionPicker(
+            anchor: View,
+            postId: String
+        ) {
+            val popup = PopupMenu(anchor.context, anchor)
+
+            popup.menu.add(0, 1, 0, "👍 Thích")
+            popup.menu.add(0, 2, 1, "❤️ Yêu thích")
+            popup.menu.add(0, 3, 2, "😂 Haha")
+            popup.menu.add(0, 4, 3, "😢 Buồn")
+            popup.menu.add(0, 5, 4, "😡 Phẫn nộ")
+
+            popup.setOnMenuItemClickListener { menuItem ->
+                val reactionType = when (menuItem.itemId) {
+                    1 -> "like"
+                    2 -> "love"
+                    3 -> "haha"
+                    4 -> "sad"
+                    5 -> "angry"
+                    else -> return@setOnMenuItemClickListener false
+                }
+
+                performPostReaction(postId, reactionType)
+                true
+            }
+
+            popup.show()
+        }
+
+
+        private fun updateReactionUi(reactionType: String?) {
+            val context = binding.root.context
+
+            val (emoji, label) = when (reactionType) {
+                "love" -> "❤️" to "Yêu thích"
+                "haha" -> "😂" to "Haha"
+                "sad" -> "😢" to "Buồn"
+                "angry" -> "😡" to "Phẫn nộ"
+                else -> "👍" to "Thích"
+            }
+
+            val isReacted = reactionType != null
+
+            // Hiển thị emoji tương ứng với cảm xúc đã chọn.
+            binding.imgPostLikeIcon.visibility = View.GONE
+            binding.tvPostLikeLabel.text = "$emoji $label"
+
+            val color = ContextCompat.getColor(
+                context,
+                if (isReacted) R.color.primary else R.color.text_secondary
+            )
+
+            binding.tvPostLikeLabel.setTextColor(color)
+            binding.tvPostLikeCount.setTextColor(color)
+
+            binding.tvPostLikeLabel.setTypeface(
+                null,
+                if (isReacted) Typeface.BOLD else Typeface.NORMAL
+            )
+
+            binding.tvPostLikeCount.setTypeface(
+                null,
+                if (isReacted) Typeface.BOLD else Typeface.NORMAL
+            )
+        }
+
+
+        private fun showReactionFilter(
+            anchor: View,
+            postId: String
+        ) {
+            val popup = PopupMenu(anchor.context, anchor)
+
+            popup.menu.add(0, 0, 0, "Tất cả cảm xúc")
+            popup.menu.add(0, 1, 1, "👍 Thích")
+            popup.menu.add(0, 2, 2, "❤️ Yêu thích")
+            popup.menu.add(0, 3, 3, "😂 Haha")
+            popup.menu.add(0, 4, 4, "😢 Buồn")
+            popup.menu.add(0, 5, 5, "😡 Phẫn nộ")
+
+            popup.setOnMenuItemClickListener { menuItem ->
+                val reactionType = when (menuItem.itemId) {
+                    0 -> null
+                    1 -> "like"
+                    2 -> "love"
+                    3 -> "haha"
+                    4 -> "sad"
+                    5 -> "angry"
+                    else -> return@setOnMenuItemClickListener false
+                }
+
+                loadPostReactors(postId, reactionType)
+                true
+            }
+
+            popup.show()
+        }
+
+        private fun loadPostReactors(
+            postId: String,
+            reactionType: String?
+        ) {
+            fragment.lifecycleScope.launch {
+                try {
+                    val reactors = PostRepository().getPostReactors(
+                        postId = postId,
+                        reactionType = reactionType,
+                        limit = 100,
+                        offset = 0
+                    )
+
+                    val context = fragment.context ?: return@launch
+
+                    val title = when (reactionType) {
+                        "like" -> "Người đã Thích"
+                        "love" -> "Người đã Yêu thích"
+                        "haha" -> "Người đã Haha"
+                        "sad" -> "Người đã Buồn"
+                        "angry" -> "Người đã Phẫn nộ"
+                        else -> "Tất cả cảm xúc"
+                    }
+
+                    if (reactors.isEmpty()) {
+                        Toast.makeText(
+                            context,
+                            "Chưa có người dùng nào.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@launch
+                    }
+
+                    val rows = reactors.map { reactor ->
+                        val emoji = when (reactor.reactionType) {
+                            "like" -> "👍"
+                            "love" -> "❤️"
+                            "haha" -> "😂"
+                            "sad" -> "😢"
+                            "angry" -> "😡"
+                            else -> "👍"
+                        }
+
+                        val name = reactor.displayName
+                            .ifBlank { reactor.username }
+
+                        "$emoji  $name  (@${reactor.username})"
+                    }.toTypedArray()
+
+                    AlertDialog.Builder(context)
+                        .setTitle(title)
+                        .setItems(rows, null)
+                        .setPositiveButton("Đóng", null)
+                        .show()
+
+                } catch (e: Exception) {
+                    val context = fragment.context ?: return@launch
+
+                    Toast.makeText(
+                        context,
+                        e.message ?: "Không thể tải danh sách cảm xúc.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
         private fun updateBookmarkUi(isSaved: Boolean) {
             val context = fragment.requireContext()
             if (isSaved) {
