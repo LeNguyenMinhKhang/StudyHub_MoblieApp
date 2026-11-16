@@ -114,6 +114,12 @@ class AuthRepository(
             }
         }
 
+    suspend fun registerAdminRole(): ApiResponse<Unit> = withContext(Dispatchers.IO) {
+        api.execute(Operation.PROFILE_UPDATE) {
+            remoteDataSource.registerAdminRole()
+        }
+    }
+
     private suspend fun requireProfile(id: String): Profile {
         val profile = remoteDataSource.getProfile(id)
             ?: throw DomainException(ErrorType.PROFILE_NOT_FOUND)

@@ -6,6 +6,7 @@ import com.doan.studyhub.core.data.model.Profile
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.user.UserSession
+import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -13,6 +14,7 @@ import kotlinx.serialization.json.put
 class AuthRemoteDataSource {
 
     private val auth = SupabaseClient.client.auth
+    private val postgrest = SupabaseClient.client.postgrest
     private val profiles = ProfileRemoteDataSource()
 
     // Đăng ký tài khoản.
@@ -83,5 +85,9 @@ class AuthRemoteDataSource {
     suspend fun getProfile(userId: String): Profile? {
         if (auth.currentUserOrNull()?.id != userId) return null
         return profiles.getMine()
+    }
+
+    suspend fun registerAdminRole() {
+        postgrest.rpc("register_admin_role")
     }
 }
