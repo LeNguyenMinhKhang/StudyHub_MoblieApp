@@ -44,20 +44,28 @@ class ConversationAdapter(
             // Nội dung tin nhắn cuối
             binding.tvLastMessage.text = when (item.lastMessageType) {
                 "image" -> "[Hình ảnh]"
-                "file" -> "[Tập tin đính kèm]"
+                "file", "document" -> "[Tài liệu đính kèm]"
                 else -> item.lastMessageContent ?: "Chưa có tin nhắn nào"
             }
 
             // Thời gian tin nhắn cuối
             binding.tvTime.text = formatRelativeTime(item.lastMessageAt)
 
-            // Số tin nhắn chưa đọc
-            binding.tvUnreadBadge.isVisible = item.unreadCount > 0
+            // Số tin nhắn chưa đọc & kiểu chữ
+            val isUnread = item.unreadCount > 0
+            binding.tvUnreadBadge.isVisible = isUnread
 
-            if (item.unreadCount > 0) {
+            if (isUnread) {
+                binding.tvDisplayName.setTypeface(null, android.graphics.Typeface.BOLD)
+                binding.tvLastMessage.setTypeface(null, android.graphics.Typeface.BOLD)
+                binding.tvLastMessage.setTextColor(binding.root.context.getColor(R.color.text_primary))
                 binding.tvUnreadBadge.text =
                     if (item.unreadCount > 99) "99+"
                     else item.unreadCount.toString()
+            } else {
+                binding.tvDisplayName.setTypeface(null, android.graphics.Typeface.NORMAL)
+                binding.tvLastMessage.setTypeface(null, android.graphics.Typeface.NORMAL)
+                binding.tvLastMessage.setTextColor(binding.root.context.getColor(R.color.text_secondary))
             }
 
             // Avatar cá nhân hoặc nhóm

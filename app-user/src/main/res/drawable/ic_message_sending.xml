@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="14dp"
+    android:height="14dp"
+    android:viewportWidth="16"
+    android:viewportHeight="16">
+    <!-- Sending: Dashed or thin circle ring -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M8,8m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0"
+        android:strokeWidth="1.2"
+        android:strokeColor="#8090A4AE" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M8,4.5 L8,8 L10.5,9.5"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8090A4AE" />
+</vector>
