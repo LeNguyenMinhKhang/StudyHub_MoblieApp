@@ -76,10 +76,10 @@ class DirectChatViewModel(
     private suspend fun loadMessages(conversationId: String) {
         when (val res = repository.getMessages(conversationId)) {
             is ApiResponse.Success -> {
-                _uiState.update {
-                    it.copy(
+                _uiState.update { state ->
+                    state.copy(
                         isLoading = false,
-                        messages = res.data,
+                        messages = computeEffectiveMessages(res.data, state.currentUserId),
                         errorMessage = null
                     )
                 }
@@ -110,7 +110,7 @@ class DirectChatViewModel(
                         } else {
                             state.messages + message
                         }
-                        state.copy(messages = updatedList)
+                        state.copy(messages = computeEffectiveMessages(updatedList, state.currentUserId))
                     }
                     if (message.senderId != _uiState.value.currentUserId) {
                         markRead(conversationId)
@@ -158,7 +158,7 @@ class DirectChatViewModel(
                             val exists = state.messages.any { it.id == res.data.id }
                             if (exists) state.messages else state.messages + res.data
                         }
-                        state.copy(messages = updated)
+                        state.copy(messages = computeEffectiveMessages(updated, state.currentUserId))
                     }
                 }
                 is ApiResponse.Failure -> {
@@ -205,7 +205,7 @@ class DirectChatViewModel(
                             val exists = state.messages.any { it.id == res.data.id }
                             if (exists) state.messages else state.messages + res.data
                         }
-                        state.copy(messages = updated)
+                        state.copy(messages = computeEffectiveMessages(updated, state.currentUserId))
                     }
                 }
                 is ApiResponse.Failure -> {
@@ -260,7 +260,7 @@ class DirectChatViewModel(
                             val exists = state.messages.any { it.id == res.data.id }
                             if (exists) state.messages else state.messages + res.data
                         }
-                        state.copy(messages = updated)
+                        state.copy(messages = computeEffectiveMessages(updated, state.currentUserId))
                     }
                 }
                 is ApiResponse.Failure -> {
@@ -334,6 +334,29 @@ class DirectChatViewModel(
             timeZone = TimeZone.getTimeZone("UTC")
         }
         return parser.format(Date())
+    }
+
+    private fun computeEffectiveMessages(messages: List<ChatMessage>, currentUserId: String?): List<ChatMessage> {
+        if (currentUserId.isNullOrBlank() || messages.isEmpty()) return messages
+
+        // Thời điểm mới nhất mà đối phương đã gửi tin nhắn
+        val lastReceivedTime = messages
+            .filter { it.senderId != currentUserId }
+            .mapNotNull { it.createdAt?.takeIf { time -> time.isNotBlank() } }
+            .maxOrNull()
+
+        return messages.map { msg ->
+            val msgCreatedAt = msg.createdAt
+            if (msg.senderId == currentUserId && msg.status == "sent" && lastReceivedTime != null && !msgCreatedAt.isNullOrBlank()) {
+                if (msgCreatedAt <= lastReceivedTime) {
+                    msg.copy(status = "read")
+                } else {
+                    msg
+                }
+            } else {
+                msg
+            }
+        }
     }
 
     override fun onCleared() {

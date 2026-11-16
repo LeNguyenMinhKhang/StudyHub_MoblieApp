@@ -102,7 +102,7 @@ class MessageAdapter(
                     binding.ivStatus.setImageResource(R.drawable.ic_message_failed)
                     binding.ivStatus.setOnClickListener { onRetryClick(item) }
                 }
-                "read" -> {
+                "read", "seen" -> {
                     binding.ivStatus.setImageResource(R.drawable.ic_message_read_circle)
                     binding.ivStatus.setOnClickListener(null)
                 }
