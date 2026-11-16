@@ -67,6 +67,25 @@ class ChatRepository(
         }
     }
 
+    suspend fun sendDocumentMessage(
+        conversationId: String,
+        fileName: String,
+        bytes: ByteArray,
+        fileMetadata: String,
+        mimeType: String? = null
+    ): ApiResponse<ChatMessage> = withContext(Dispatchers.IO) {
+        api.execute(Operation.CHAT_UPLOAD) {
+            getCurrentUserId() ?: throw DomainException(ErrorType.UNAUTHENTICATED)
+            val publicUrl = remoteDataSource.uploadChatDocument(conversationId, fileName, bytes, mimeType)
+            remoteDataSource.sendMessage(
+                conversationId = conversationId,
+                content = fileMetadata,
+                type = "document",
+                fileUrl = publicUrl
+            )
+        }
+    }
+
     suspend fun markRead(conversationId: String): ApiResponse<Unit> = withContext(Dispatchers.IO) {
         api.execute(Operation.CHAT_MARK_READ) {
             remoteDataSource.markConversationRead(conversationId)
