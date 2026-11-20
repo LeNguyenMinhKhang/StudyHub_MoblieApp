@@ -42,6 +42,7 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.process)
 
     // Supabase & Ktor & Serialization
     implementation(platform(libs.supabase.bom))
