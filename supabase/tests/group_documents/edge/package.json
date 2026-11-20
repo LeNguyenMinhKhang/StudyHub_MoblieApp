@@ -1,0 +1,11 @@
+{
+  "name": "studyhub-group-documents-edge-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --experimental-strip-types"
+  },
+  "dependencies": {
+    "pdf-lib": "1.17.1"
+  }
+}

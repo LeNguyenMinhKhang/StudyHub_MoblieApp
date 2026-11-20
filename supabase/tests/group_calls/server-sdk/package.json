@@ -1,0 +1,11 @@
+{
+  "name": "studyhub-livekit-contract-probe",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test sdk_contract.test.mjs"
+  },
+  "dependencies": {
+    "livekit-server-sdk": "2.19.3"
+  }
+}
