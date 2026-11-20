@@ -1,4 +1,4 @@
-﻿-- =====================================================================
+-- =====================================================================
 -- StudyHub – Schema Supabase/PostgreSQL (Đã cập nhật đầy đủ)
 -- Chạy toàn bộ file này trong Supabase Dashboard > SQL Editor
 -- Đã bao gồm:
@@ -470,6 +470,58 @@ drop policy if exists "saved_posts_delete_own" on public.saved_posts;
 create policy "saved_posts_delete_own" on public.saved_posts
   for delete using (auth.uid() = user_id);
 
+create index if not exists post_hashtags_post_id_idx on public.post_hashtags(post_id);
+create index if not exists post_hashtags_hashtag_id_idx on public.post_hashtags(hashtag_id);
+create index if not exists saved_posts_user_id_idx on public.saved_posts(user_id);
+create index if not exists saved_posts_post_id_idx on public.saved_posts(post_id);
+
+create or replace function public.toggle_saved_post(p_post_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_user_id uuid := auth.uid();
+    v_exists boolean;
+begin
+    if v_user_id is null then
+        raise exception 'not authenticated' using errcode = '42501';
+    end if;
+
+    if p_post_id is null then
+        raise exception 'invalid post id' using errcode = '22023';
+    end if;
+
+    if not exists (
+        select 1 from public.posts p
+        where p.id = p_post_id
+    ) then
+        raise exception 'post not found' using errcode = 'P0002';
+    end if;
+
+    select exists (
+        select 1 from public.saved_posts sp
+        where sp.user_id = v_user_id and sp.post_id = p_post_id
+    ) into v_exists;
+
+    if v_exists then
+        delete from public.saved_posts sp
+        where sp.user_id = v_user_id and sp.post_id = p_post_id;
+        return false;
+    else
+        insert into public.saved_posts (user_id, post_id)
+        values (v_user_id, p_post_id)
+        on conflict (user_id, post_id) do nothing;
+        return true;
+    end if;
+end;
+$$;
+
+revoke all on function public.toggle_saved_post(uuid) from public, anon;
+grant execute on function public.toggle_saved_post(uuid) to authenticated;
+
+
 -- =====================================================================
 -- 11. friendships (phân hệ 7.1, 7.2)
 -- =====================================================================
@@ -505,6 +557,7 @@ create policy "friendships_delete_involved" on public.friendships
 
 -- =====================================================================
 -- 12. blocks (phân hệ 7.6)
+-- Source: supabase/migrations/20261108120000_user_block_settings.sql
 -- =====================================================================
 create table if not exists public.blocks (
   id uuid primary key default gen_random_uuid(),
@@ -516,17 +569,278 @@ create table if not exists public.blocks (
 
 alter table public.blocks enable row level security;
 
-drop policy if exists "blocks_select_own" on public.blocks;
-create policy "blocks_select_own" on public.blocks
-  for select using (auth.uid() = blocker_id);
+-- Snapshot trạng thái Block
+create or replace function studyhub_private.block_snapshot(
+    p_actor uuid,
+    p_target uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_blocked_by_me boolean;
+    v_blocked_me boolean;
+begin
+    if p_target is null or p_target = p_actor then
+        raise exception 'invalid target' using errcode = 'F0001';
+    end if;
 
-drop policy if exists "blocks_insert_own" on public.blocks;
-create policy "blocks_insert_own" on public.blocks
-  for insert with check (auth.uid() = blocker_id);
+    if not exists (
+        select 1
+        from public.profiles
+        where id = p_target
+    ) then
+        raise exception 'target unavailable' using errcode = 'F0002';
+    end if;
 
-drop policy if exists "blocks_delete_own" on public.blocks;
-create policy "blocks_delete_own" on public.blocks
-  for delete using (auth.uid() = blocker_id);
+    select exists (
+        select 1 from public.blocks
+        where blocker_id = p_actor and blocked_id = p_target
+    ) into v_blocked_by_me;
+
+    select exists (
+        select 1 from public.blocks
+        where blocker_id = p_target and blocked_id = p_actor
+    ) into v_blocked_me;
+
+    return jsonb_build_object(
+        'target_id', p_target,
+        'blocked_by_me', v_blocked_by_me,
+        'blocked_me', v_blocked_me,
+        'is_blocked', v_blocked_by_me or v_blocked_me
+    );
+end;
+$$;
+
+-- Lấy trạng thái Block
+create or replace function public.get_block_state(
+    p_target_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+begin
+    return studyhub_private.block_snapshot(v_actor, p_target_id);
+end;
+$$;
+
+-- Block user
+create or replace function public.block_user(
+    p_target_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_relation public.friendships;
+begin
+    if p_target_id is null or p_target_id = v_actor then
+        raise exception 'invalid target' using errcode = 'F0001';
+    end if;
+
+    if not exists (
+        select 1
+        from public.profiles
+        where id = p_target_id
+          and not is_banned
+    ) then
+        raise exception 'peer unavailable' using errcode = 'F0002';
+    end if;
+
+    -- Serialize các thao tác Block trên cùng một cặp người dùng
+    perform pg_advisory_xact_lock(
+        hashtextextended(
+            least(v_actor::text, p_target_id::text)
+            || ':'
+            || greatest(v_actor::text, p_target_id::text),
+            0
+        )
+    );
+
+    -- Ngăn thao tác Friendship đồng thời vượt qua thời điểm Block
+    lock table public.friendships in share row exclusive mode;
+
+    -- Tạo Block. Nếu đã tồn tại thì không tạo bản ghi trùng
+    insert into public.blocks(blocker_id, blocked_id)
+    values (v_actor, p_target_id)
+    on conflict (blocker_id, blocked_id) do nothing;
+
+    -- Xóa quan hệ bạn bè hoặc lời mời đang chờ giữa hai người
+    delete from public.friendships
+    where least(requester_id, addressee_id)
+              = least(v_actor, p_target_id)
+      and greatest(requester_id, addressee_id)
+              = greatest(v_actor, p_target_id)
+    returning * into v_relation;
+
+    -- Dọn thông báo lời mời kết bạn liên quan
+    if found then
+        delete from public.notifications
+        where type = 'friend_request'
+          and user_id = v_relation.addressee_id
+          and actor_id = v_relation.requester_id
+          and (
+              source_id = v_relation.id
+              or source_id is null
+          );
+    end if;
+
+    return studyhub_private.block_snapshot(
+        v_actor,
+        p_target_id
+    );
+end;
+$$;
+
+-- Unblock user
+create or replace function public.unblock_user(
+    p_target_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+begin
+    if p_target_id is null or p_target_id = v_actor then
+        raise exception 'invalid target' using errcode = 'F0001';
+    end if;
+
+    perform pg_advisory_xact_lock(
+        hashtextextended(
+            least(v_actor::text, p_target_id::text)
+            || ':'
+            || greatest(v_actor::text, p_target_id::text),
+            0
+        )
+    );
+
+    -- Chỉ xóa bản ghi do chính actor tạo
+    delete from public.blocks
+    where blocker_id = v_actor
+      and blocked_id = p_target_id;
+
+    return studyhub_private.block_snapshot(
+        v_actor,
+        p_target_id
+    );
+end;
+$$;
+
+-- Danh sách người tôi đã Block
+create or replace function public.list_blocked_users(
+    p_limit integer default 20,
+    p_cursor_created_at timestamptz default null,
+    p_cursor_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_page_size integer;
+    v_result jsonb;
+begin
+    if p_limit is null
+       or p_limit <= 0
+       or ((p_cursor_created_at is null) <> (p_cursor_id is null))
+       or (
+           p_cursor_created_at is not null
+           and not isfinite(p_cursor_created_at)
+       ) then
+        raise exception 'invalid page input' using errcode = 'F0001';
+    end if;
+
+    v_page_size := least(p_limit, 50);
+
+    with candidates as materialized (
+        select
+            b.id,
+            b.created_at,
+            jsonb_build_object(
+                'id', p.id,
+                'username', p.username,
+                'display_name', p.display_name,
+                'avatar_url', p.avatar_url
+            ) as peer
+        from public.blocks b
+        join public.profiles p
+            on p.id = b.blocked_id
+        where b.blocker_id = v_actor
+          and (
+              p_cursor_id is null
+              or (b.created_at, b.id)
+                 < (p_cursor_created_at, p_cursor_id)
+          )
+        order by b.created_at desc, b.id desc
+        limit v_page_size + 1
+    ),
+    page as (
+        select *
+        from candidates
+        order by created_at desc, id desc
+        limit v_page_size
+    )
+    select jsonb_build_object(
+        'items',
+        coalesce(
+            (
+                select jsonb_agg(
+                    to_jsonb(page)
+                    order by created_at desc, id desc
+                )
+                from page
+            ),
+            '[]'::jsonb
+        ),
+        'next_cursor',
+        case
+            when (select count(*) from candidates) > v_page_size
+            then (
+                select jsonb_build_object(
+                    'created_at', created_at,
+                    'id', id
+                )
+                from page
+                order by created_at, id
+                limit 1
+            )
+            else null
+        end
+    )
+    into v_result;
+
+    return v_result;
+end;
+$$;
+
+-- Chỉ sử dụng RPC, không cho client thao tác trực tiếp trên bảng blocks
+revoke all on public.blocks from public, anon, authenticated;
+revoke all on function studyhub_private.block_snapshot(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.get_block_state(uuid),
+    public.block_user(uuid),
+    public.unblock_user(uuid),
+    public.list_blocked_users(integer, timestamptz, uuid)
+from public, anon, authenticated;
+
+grant execute on function public.get_block_state(uuid),
+    public.block_user(uuid),
+    public.unblock_user(uuid),
+    public.list_blocked_users(integer, timestamptz, uuid)
+to authenticated;
 
 -- =====================================================================
 -- 13. reports (phân hệ 6.7, 12.4)
@@ -562,7 +876,7 @@ create policy "reports_update_admin" on public.reports
 -- =====================================================================
 
 -- =====================================================================
--- 14. Helper functions for Chat RLS (Tránh đệ quy)
+-- 14. Helper functions for Chat RLS (Tránh đệ quy & kiểm tra block)
 -- =====================================================================
 create or replace function public.is_conversation_member(p_conversation_id uuid, p_user_id uuid)
 returns boolean
@@ -590,8 +904,61 @@ as $$
   );
 $$;
 
+create or replace function public.direct_chat_available(
+    p_conversation_id uuid,
+    p_actor_id uuid
+)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+    v_type text;
+    v_peer_id uuid;
+begin
+    if p_actor_id is null or p_conversation_id is null then
+        return false;
+    end if;
+
+    select c.type
+    into v_type
+    from public.conversations c
+    where c.id = p_conversation_id;
+
+    if not found then
+        return false;
+    end if;
+
+    -- Group chat không bị ảnh hưởng bởi chức năng block.
+    if v_type <> 'direct' then
+        return true;
+    end if;
+
+    -- Tìm người còn lại trong direct conversation.
+    select m.user_id
+    into v_peer_id
+    from public.conversation_members m
+    where m.conversation_id = p_conversation_id
+      and m.user_id <> p_actor_id
+    limit 1;
+
+    if v_peer_id is null then
+        return false;
+    end if;
+
+    -- Kiểm tra block hai chiều.
+    return studyhub_private.friend_peer_available(
+        p_actor_id,
+        v_peer_id
+    );
+end;
+$$;
+
 grant execute on function public.is_conversation_member(uuid, uuid) to authenticated, anon;
 grant execute on function public.is_conversation_admin(uuid, uuid) to authenticated, anon;
+grant execute on function public.direct_chat_available(uuid, uuid) to authenticated;
 
 -- =====================================================================
 -- 15. conversations (phân hệ 8, 9)
@@ -627,8 +994,14 @@ alter table public.conversations enable row level security;
 drop policy if exists "conversations_select_member" on public.conversations;
 create policy "conversations_select_member" on public.conversations
   for select using (
-    created_by = auth.uid()
-    or public.is_conversation_member(id, auth.uid())
+    (
+      created_by = auth.uid()
+      or public.is_conversation_member(id, auth.uid())
+    )
+    and (
+      type <> 'direct'
+      or public.direct_chat_available(id, auth.uid())
+    )
   );
 
 drop policy if exists "conversations_insert_authenticated" on public.conversations;
@@ -644,8 +1017,11 @@ alter table public.conversation_members enable row level security;
 drop policy if exists "conv_members_select_self_conv" on public.conversation_members;
 create policy "conv_members_select_self_conv" on public.conversation_members
   for select using (
-    user_id = auth.uid()
-    or public.is_conversation_member(conversation_id, auth.uid())
+    (
+      user_id = auth.uid()
+      or public.is_conversation_member(conversation_id, auth.uid())
+    )
+    and public.direct_chat_available(conversation_id, auth.uid())
   );
 
 drop policy if exists "conv_members_insert_self_or_admin" on public.conversation_members;
@@ -691,8 +1067,8 @@ alter table public.messages enable row level security;
 drop policy if exists "messages_select_member" on public.messages;
 create policy "messages_select_member" on public.messages
   for select using (
-    sender_id = auth.uid()
-    or public.is_conversation_member(conversation_id, auth.uid())
+    public.is_conversation_member(conversation_id, auth.uid())
+    and public.direct_chat_available(conversation_id, auth.uid())
   );
 
 drop policy if exists "messages_insert_member" on public.messages;
@@ -700,6 +1076,7 @@ create policy "messages_insert_member" on public.messages
   for insert with check (
     auth.uid() = sender_id
     and public.is_conversation_member(conversation_id, auth.uid())
+    and public.direct_chat_available(conversation_id, auth.uid())
   );
 
 drop policy if exists "messages_update_own" on public.messages;
@@ -1017,14 +1394,17 @@ grant execute on function public.get_friendship_state(uuid), public.send_friend_
 
 -- =====================================================================
 -- 23. Direct Chat & Messaging RPC Functions
+-- Source: supabase/migrations/20261108130000_block_direct_chat.sql
 -- =====================================================================
 
--- Lấy hoặc tạo cuộc hội thoại 1-1
-create or replace function public.get_or_create_direct_conversation(p_target_id uuid)
+-- Lấy hoặc tạo cuộc hội thoại 1-1 (Kiểm tra block 2 chiều)
+create or replace function public.get_or_create_direct_conversation(
+    p_target_id uuid
+)
 returns jsonb
 language plpgsql
 security definer
-set search_path = 'public', 'auth', 'pg_temp'
+set search_path = 'public', 'auth', 'studyhub_private', 'pg_temp'
 as $$
 declare
     v_actor uuid := auth.uid();
@@ -1033,38 +1413,76 @@ declare
     v_target_avatar text;
 begin
     if v_actor is null then
-        raise exception 'not authenticated' using errcode = '42501';
+        raise exception 'not authenticated'
+            using errcode = '42501';
     end if;
 
     if p_target_id is null or p_target_id = v_actor then
-        raise exception 'invalid target user' using errcode = '22023';
+        raise exception 'invalid target user'
+            using errcode = '22023';
     end if;
 
-    select display_name, avatar_url
-    into v_target_name, v_target_avatar
+    select
+        display_name,
+        avatar_url
+    into
+        v_target_name,
+        v_target_avatar
     from public.profiles
-    where id = p_target_id and not is_banned;
+    where id = p_target_id
+      and not is_banned;
 
     if not found then
-        raise exception 'target user unavailable' using errcode = 'P0002';
+        raise exception 'target user unavailable'
+            using errcode = 'P0002';
+    end if;
+
+    -- Không cho tạo hoặc mở direct chat nếu một trong hai bên đã block.
+    if not studyhub_private.friend_peer_available(
+        v_actor,
+        p_target_id
+    ) then
+        raise exception 'direct conversation unavailable'
+            using errcode = '42501';
     end if;
 
     -- Tìm cuộc hội thoại direct đã có giữa 2 người
-    select c.id into v_conversation_id
+    select c.id
+    into v_conversation_id
     from public.conversations c
     where c.type = 'direct'
-      and exists (select 1 from public.conversation_members m where m.conversation_id = c.id and m.user_id = v_actor)
-      and exists (select 1 from public.conversation_members m where m.conversation_id = c.id and m.user_id = p_target_id)
+      and exists (
+          select 1
+          from public.conversation_members m
+          where m.conversation_id = c.id
+            and m.user_id = v_actor
+      )
+      and exists (
+          select 1
+          from public.conversation_members m
+          where m.conversation_id = c.id
+            and m.user_id = p_target_id
+      )
     limit 1;
 
     -- Nếu chưa có thì tạo mới hội thoại và thêm cả 2 vào thành viên
     if v_conversation_id is null then
-        insert into public.conversations (type, created_by)
-        values ('direct', v_actor)
+        insert into public.conversations (
+            type,
+            created_by
+        )
+        values (
+            'direct',
+            v_actor
+        )
         returning id into v_conversation_id;
 
-        insert into public.conversation_members (conversation_id, user_id, role)
-        values 
+        insert into public.conversation_members (
+            conversation_id,
+            user_id,
+            role
+        )
+        values
             (v_conversation_id, v_actor, 'admin'),
             (v_conversation_id, p_target_id, 'member')
         on conflict (conversation_id, user_id) do nothing;
@@ -1079,7 +1497,7 @@ begin
 end;
 $$;
 
--- Danh sách các cuộc trò chuyện của người dùng hiện tại
+-- Danh sách các cuộc trò chuyện của người dùng hiện tại (ẩn direct chat bị block)
 create or replace function public.list_my_conversations()
 returns table (
     conversation_id uuid,
@@ -1099,43 +1517,57 @@ declare
     v_actor uuid := auth.uid();
 begin
     if v_actor is null then
-        raise exception 'not authenticated' using errcode = '42501';
+        raise exception 'not authenticated'
+            using errcode = '42501';
     end if;
 
     return query
     with my_convs as (
-        select m.conversation_id, m.last_read_at
+        select
+            m.conversation_id,
+            m.last_read_at
         from public.conversation_members m
         where m.user_id = v_actor
     ),
+
     conv_details as (
-        select 
+        select
             c.id,
             c.type,
-            case 
+
+            case
                 when c.type = 'direct' then (
-                    select p.display_name 
+                    select p.display_name
                     from public.conversation_members other_m
-                    join public.profiles p on p.id = other_m.user_id
-                    where other_m.conversation_id = c.id and other_m.user_id != v_actor
+                    join public.profiles p
+                      on p.id = other_m.user_id
+                    where other_m.conversation_id = c.id
+                      and other_m.user_id <> v_actor
                     limit 1
                 )
                 else c.name
             end as computed_title,
-            case 
+
+            case
                 when c.type = 'direct' then (
-                    select p.avatar_url 
+                    select p.avatar_url
                     from public.conversation_members other_m
-                    join public.profiles p on p.id = other_m.user_id
-                    where other_m.conversation_id = c.id and other_m.user_id != v_actor
+                    join public.profiles p
+                      on p.id = other_m.user_id
+                    where other_m.conversation_id = c.id
+                      and other_m.user_id <> v_actor
                     limit 1
                 )
                 else c.avatar_url
             end as computed_avatar,
+
             mc.last_read_at
+
         from my_convs mc
-        join public.conversations c on c.id = mc.conversation_id
+        join public.conversations c
+          on c.id = mc.conversation_id
     ),
+
     last_msgs as (
         select distinct on (msg.conversation_id)
             msg.conversation_id,
@@ -1143,20 +1575,29 @@ begin
             msg.type,
             msg.created_at
         from public.messages msg
-        join my_convs mc on mc.conversation_id = msg.conversation_id
-        order by msg.conversation_id, msg.created_at desc
+        join my_convs mc
+          on mc.conversation_id = msg.conversation_id
+        order by
+            msg.conversation_id,
+            msg.created_at desc
     ),
+
     unreads as (
-        select 
+        select
             msg.conversation_id,
             count(*) as unread_count
         from public.messages msg
-        join my_convs mc on mc.conversation_id = msg.conversation_id
-        where msg.sender_id != v_actor 
-          and (mc.last_read_at is null or msg.created_at > mc.last_read_at)
+        join my_convs mc
+          on mc.conversation_id = msg.conversation_id
+        where msg.sender_id <> v_actor
+          and (
+              mc.last_read_at is null
+              or msg.created_at > mc.last_read_at
+          )
         group by msg.conversation_id
     )
-    select 
+
+    select
         cd.id as conversation_id,
         cd.type,
         coalesce(cd.computed_title, 'Trò chuyện') as title,
@@ -1165,10 +1606,27 @@ begin
         lm.type as last_message_type,
         lm.created_at as last_message_at,
         coalesce(u.unread_count, 0) as unread_count
+
     from conv_details cd
-    left join last_msgs lm on lm.conversation_id = cd.id
-    left join unreads u on u.conversation_id = cd.id
-    order by coalesce(lm.created_at, '1970-01-01'::timestamptz) desc;
+
+    left join last_msgs lm
+      on lm.conversation_id = cd.id
+
+    left join unreads u
+      on u.conversation_id = cd.id
+
+    where
+        cd.type <> 'direct'
+        or public.direct_chat_available(
+            cd.id,
+            v_actor
+        )
+
+    order by coalesce(
+        lm.created_at,
+        '1970-01-01'::timestamptz
+    ) desc;
+
 end;
 $$;
 
@@ -1192,7 +1650,7 @@ begin
 end;
 $$;
 
--- Gửi tin nhắn mới (text hoặc image)
+-- Gửi tin nhắn mới (text hoặc image, chặn nếu direct chat bị block)
 drop function if exists public.send_chat_message(uuid, text, text, text);
 drop function if exists public.send_chat_message;
 
@@ -1210,23 +1668,62 @@ as $$
 declare
     v_sender_id uuid := auth.uid();
     v_msg record;
+    v_conversation_type text;
 begin
     if v_sender_id is null then
-        raise exception 'not authenticated' using errcode = '42501';
+        raise exception 'not authenticated'
+            using errcode = '42501';
     end if;
 
-    if not public.is_conversation_member(p_conversation_id, v_sender_id) then
-        raise exception 'user is not a member of this conversation' using errcode = '42501';
+    -- Người gửi phải là thành viên
+    if not public.is_conversation_member(
+        p_conversation_id,
+        v_sender_id
+    ) then
+        raise exception 'user is not a member of this conversation'
+            using errcode = '42501';
     end if;
 
-    if p_type = 'text' and (p_content is null or btrim(p_content) = '') then
-        raise exception 'content cannot be empty for text message' using errcode = '22023';
+    select c.type
+    into v_conversation_type
+    from public.conversations c
+    where c.id = p_conversation_id;
+
+    if not found then
+        raise exception 'conversation not found'
+            using errcode = 'P0002';
     end if;
 
-    if p_type = 'image' and (p_file_url is null or btrim(p_file_url) = '') then
-        raise exception 'file_url cannot be empty for image message' using errcode = '22023';
+    -- Chỉ kiểm tra block với direct chat. Group chat vẫn hoạt động bình thường.
+    if v_conversation_type = 'direct'
+       and not public.direct_chat_available(
+           p_conversation_id,
+           v_sender_id
+       ) then
+        raise exception 'direct conversation unavailable'
+            using errcode = '42501';
     end if;
 
+    -- Kiểm tra nội dung tin nhắn
+    if coalesce(p_type, 'text') = 'text'
+       and (
+           p_content is null
+           or btrim(p_content) = ''
+       ) then
+        raise exception 'content cannot be empty for text message'
+            using errcode = '22023';
+    end if;
+
+    if coalesce(p_type, 'text') = 'image'
+       and (
+           p_file_url is null
+           or btrim(p_file_url) = ''
+       ) then
+        raise exception 'file_url cannot be empty for image message'
+            using errcode = '22023';
+    end if;
+
+    -- Thêm tin nhắn
     insert into public.messages (
         id,
         conversation_id,
@@ -1249,9 +1746,11 @@ begin
     )
     returning * into v_msg;
 
+    -- Cập nhật trạng thái đã đọc cho người gửi
     update public.conversation_members
     set last_read_at = now()
-    where conversation_id = p_conversation_id and user_id = v_sender_id;
+    where conversation_id = p_conversation_id
+      and user_id = v_sender_id;
 
     return to_jsonb(v_msg);
 end;
@@ -1261,6 +1760,430 @@ grant execute on function public.get_or_create_direct_conversation(uuid) to auth
 grant execute on function public.list_my_conversations() to authenticated;
 grant execute on function public.mark_conversation_read(uuid) to authenticated;
 grant execute on function public.send_chat_message(uuid, text, text, text) to authenticated;
+
+-- =====================================================================
+-- 24. Unified search (pg_trgm + unaccent RPCs, phân hệ 7.3)
+-- Source: supabase/migrations/20261106_unified_search.sql
+-- =====================================================================
+
+do $$
+begin
+    if to_regprocedure('studyhub_private.friend_actor()') is null
+       or to_regprocedure('studyhub_private.friend_peer_available(uuid,uuid)') is null then
+        raise exception 'search preflight failed: friendship helpers are missing';
+    end if;
+end;
+$$;
+
+create schema if not exists extensions;
+create extension if not exists pg_trgm with schema extensions;
+create extension if not exists unaccent with schema extensions;
+
+do $$
+begin
+    if exists (
+        select 1 from pg_extension e join pg_namespace n on n.oid = e.extnamespace
+        where e.extname in ('pg_trgm', 'unaccent') and n.nspname <> 'extensions'
+    ) then
+        raise exception 'search preflight failed: pg_trgm and unaccent must live in schema extensions';
+    end if;
+end;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- Normalization helpers (IMMUTABLE so they can back expression indexes).
+-- unaccent itself is STABLE; the dictionary-qualified call is pinned here.
+-- Reindex the *_trgm_idx indexes after upgrading the unaccent rules.
+-- ------------------------------------------------------------------------------
+create or replace function studyhub_private.search_norm(p_value text)
+returns text
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+    select btrim(regexp_replace(
+        regexp_replace(
+            lower(extensions.unaccent('extensions.unaccent'::regdictionary, normalize(p_value, NFC))),
+            '[_./-]+', ' ', 'g'),
+        '\s+', ' ', 'g'))
+$$;
+
+-- Same expression as search_norm after dropping the extension. It is inlined
+-- rather than calling search_norm by name: index expressions run as the
+-- writing role, which has no USAGE on schema studyhub_private.
+create or replace function studyhub_private.search_file_norm(p_value text)
+returns text
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+    select btrim(regexp_replace(
+        regexp_replace(
+            lower(extensions.unaccent('extensions.unaccent'::regdictionary,
+                normalize(regexp_replace(p_value, '\.[A-Za-z0-9]{1,8}$', ''), NFC))),
+            '[_./-]+', ' ', 'g'),
+        '\s+', ' ', 'g'))
+$$;
+
+create or replace function studyhub_private.search_like_escape(p_value text)
+returns text
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+    select replace(replace(replace(p_value, '\', '\\'), '%', '\%'), '_', '\_')
+$$;
+
+-- Validates paging input and returns the normalized query and page window.
+create or replace function studyhub_private.search_input(
+    p_query text, p_limit integer, p_offset integer,
+    out q text, out q_like text, out q_raw text, out page_size integer)
+language plpgsql
+immutable
+set search_path = ''
+as $$
+begin
+    if p_query is null or p_limit is null or p_offset is null
+       or p_limit <= 0 or p_offset < 0 or char_length(p_query) > 100 then
+        raise exception 'invalid search input' using errcode = 'F0001';
+    end if;
+    q := coalesce(studyhub_private.search_norm(p_query), '');
+    q_like := studyhub_private.search_like_escape(q);
+    q_raw := lower(btrim(p_query));
+    page_size := greatest(least(p_limit, 50, 100 - p_offset), 0);
+end;
+$$;
+
+-- Mirrors PostTypeUtils.parse: "<category>:<visibility>" or a legacy single value.
+-- SQL-standard body: names are bound at creation (no search_path exposure) and
+-- the planner can inline it into the search queries.
+create or replace function studyhub_private.post_visibility(p_type text)
+returns text
+language sql
+immutable
+parallel safe
+return case pg_catalog.lower(pg_catalog.btrim(
+        case when pg_catalog.strpos(coalesce(p_type, ''), ':') > 0 then pg_catalog.split_part(p_type, ':', 2)
+             else coalesce(p_type, '') end, E' \t\r\n'))
+    when 'friends' then 'friends'
+    when 'private' then 'private'
+    else 'public'
+end;
+
+-- ------------------------------------------------------------------------------
+-- Trigram expression indexes. Queries must use the same expressions.
+-- ------------------------------------------------------------------------------
+create index if not exists profiles_username_trgm_idx
+    on public.profiles using gin (studyhub_private.search_norm(username) extensions.gin_trgm_ops);
+create index if not exists profiles_display_name_trgm_idx
+    on public.profiles using gin (studyhub_private.search_norm(display_name) extensions.gin_trgm_ops);
+create index if not exists posts_title_trgm_idx
+    on public.posts using gin (studyhub_private.search_norm(title) extensions.gin_trgm_ops);
+create index if not exists posts_content_trgm_idx
+    on public.posts using gin (studyhub_private.search_norm(content) extensions.gin_trgm_ops);
+create index if not exists subjects_name_trgm_idx
+    on public.subjects using gin (studyhub_private.search_norm(name) extensions.gin_trgm_ops);
+create index if not exists post_files_file_name_trgm_idx
+    on public.post_files using gin (studyhub_private.search_file_norm(file_name) extensions.gin_trgm_ops);
+
+-- ------------------------------------------------------------------------------
+-- RPCs. Ranking: tier (1 prefix, 2 contains, 3 fuzzy), exact-diacritic match,
+-- word similarity, tab secondary key, id. Pages are capped at 50 items and
+-- the first 100 ranked results.
+-- ------------------------------------------------------------------------------
+create or replace function public.search_profiles(p_query text, p_limit integer default 20, p_offset integer default 0)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+set pg_trgm.word_similarity_threshold = '0.5'
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_q text; v_like text; v_raw text; v_size integer; v_contains text; v_fuzzy boolean;
+    v_result jsonb;
+begin
+    select i.q, i.q_like, i.q_raw, i.page_size into v_q, v_like, v_raw, v_size
+    from studyhub_private.search_input(p_query, p_limit, p_offset) i;
+    if char_length(v_q) < 2 or v_size = 0 then
+        return jsonb_build_object('items', '[]'::jsonb, 'has_more', false);
+    end if;
+    v_contains := '%' || v_like || '%';
+    -- Trigrams ignore symbols, so queries such as "100%" or "c++" stay literal.
+    v_fuzzy := char_length(v_q) >= 4 and v_q !~ '[^[:alnum:][:space:]]';
+
+    with hits as (
+        select p.id, p.username, p.display_name, p.avatar_url,
+               studyhub_private.search_norm(p.username) as n_user,
+               studyhub_private.search_norm(p.display_name) as n_display
+        from public.profiles p
+        where not p.is_banned
+          and (p.id = v_actor or not exists (
+                select 1 from public.blocks b
+                where (b.blocker_id = v_actor and b.blocked_id = p.id)
+                   or (b.blocker_id = p.id and b.blocked_id = v_actor)))
+          and (studyhub_private.search_norm(p.username) like v_contains escape '\'
+               or studyhub_private.search_norm(p.display_name) like v_contains escape '\'
+               or (v_fuzzy and v_q operator(extensions.<%) studyhub_private.search_norm(p.username))
+               or (v_fuzzy and v_q operator(extensions.<%) studyhub_private.search_norm(p.display_name)))
+    ), ordered as (
+        select h.*, row_number() over (order by
+            case when h.n_user like v_like || '%' escape '\' or h.n_display like v_like || '%' escape '\' then 1
+                 when h.n_user like v_contains escape '\' or h.n_display like v_contains escape '\' then 2
+                 else 3 end,
+            (strpos(lower(h.username), v_raw) > 0 or strpos(lower(h.display_name), v_raw) > 0) desc,
+            greatest(extensions.word_similarity(v_q, h.n_user), extensions.word_similarity(v_q, h.n_display)) desc,
+            h.username, h.id) as rn
+        from hits h
+    )
+    select jsonb_build_object(
+        'items', coalesce(jsonb_agg(jsonb_build_object(
+                'id', o.id, 'username', o.username, 'display_name', o.display_name, 'avatar_url', o.avatar_url)
+            order by o.rn) filter (where o.rn > p_offset and o.rn <= p_offset + v_size), '[]'::jsonb),
+        'has_more', coalesce(bool_or(o.rn > p_offset + v_size), false) and p_offset + v_size < 100)
+    into v_result
+    from ordered o
+    where o.rn <= p_offset + v_size + 1;
+    return v_result;
+end;
+$$;
+
+create or replace function public.search_subjects(p_query text, p_limit integer default 20, p_offset integer default 0)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+set pg_trgm.word_similarity_threshold = '0.5'
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_q text; v_like text; v_raw text; v_size integer; v_contains text; v_fuzzy boolean;
+    v_result jsonb;
+begin
+    select i.q, i.q_like, i.q_raw, i.page_size into v_q, v_like, v_raw, v_size
+    from studyhub_private.search_input(p_query, p_limit, p_offset) i;
+    if char_length(v_q) < 2 or v_size = 0 then
+        return jsonb_build_object('items', '[]'::jsonb, 'has_more', false);
+    end if;
+    v_contains := '%' || v_like || '%';
+    -- Trigrams ignore symbols, so queries such as "100%" or "c++" stay literal.
+    v_fuzzy := char_length(v_q) >= 4 and v_q !~ '[^[:alnum:][:space:]]';
+
+    with hits as (
+        select s.id, s.name, s.description, s.is_active, s.created_at,
+               studyhub_private.search_norm(s.name) as n_name,
+               studyhub_private.search_norm(s.description) as n_desc
+        from public.subjects s
+        where s.is_active
+          and (studyhub_private.search_norm(s.name) like v_contains escape '\'
+               or studyhub_private.search_norm(s.description) like v_contains escape '\'
+               or (v_fuzzy and v_q operator(extensions.<%) studyhub_private.search_norm(s.name)))
+    ), ordered as (
+        select h.*, row_number() over (order by
+            case when h.n_name like v_like || '%' escape '\' or h.n_desc like v_like || '%' escape '\' then 1
+                 when h.n_name like v_contains escape '\' or h.n_desc like v_contains escape '\' then 2
+                 else 3 end,
+            (strpos(lower(h.name), v_raw) > 0 or strpos(lower(coalesce(h.description, '')), v_raw) > 0) desc,
+            extensions.word_similarity(v_q, h.n_name) desc,
+            h.name, h.id) as rn
+        from hits h
+    )
+    select jsonb_build_object(
+        'items', coalesce(jsonb_agg(jsonb_build_object(
+                'id', o.id, 'name', o.name, 'description', o.description,
+                'is_active', o.is_active, 'created_at', o.created_at)
+            order by o.rn) filter (where o.rn > p_offset and o.rn <= p_offset + v_size), '[]'::jsonb),
+        'has_more', coalesce(bool_or(o.rn > p_offset + v_size), false) and p_offset + v_size < 100)
+    into v_result
+    from ordered o
+    where o.rn <= p_offset + v_size + 1;
+    return v_result;
+end;
+$$;
+
+create or replace function public.search_posts(p_query text, p_limit integer default 20, p_offset integer default 0)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_q text; v_like text; v_raw text; v_size integer; v_contains text; v_fuzzy boolean;
+    v_result jsonb;
+begin
+    begin
+        perform set_config('pg_trgm.word_similarity_threshold', '0.5', true);
+    exception when others then
+        null;
+    end;
+    select i.q, i.q_like, i.q_raw, i.page_size into v_q, v_like, v_raw, v_size
+    from studyhub_private.search_input(p_query, p_limit, p_offset) i;
+    if char_length(v_q) < 2 or v_size = 0 then
+        return jsonb_build_object('items', '[]'::jsonb, 'has_more', false);
+    end if;
+    v_contains := '%' || v_like || '%';
+    -- Trigrams ignore symbols, so queries such as "100%" or "c++" stay literal.
+    v_fuzzy := char_length(v_q) >= 4 and v_q !~ '[^[:alnum:][:space:]]';
+
+    -- Visibility: the author sees everything; others need an author who is not
+    -- banned, no block either way, and public visibility or an accepted
+    -- friendship. Friend and block sets are computed once per call.
+    with viewer_friends as materialized (
+        select case when f.requester_id = v_actor then f.addressee_id else f.requester_id end as peer_id
+        from public.friendships f
+        where f.status = 'accepted' and (f.requester_id = v_actor or f.addressee_id = v_actor)
+    ), blocked as materialized (
+        select b.blocked_id as peer_id from public.blocks b where b.blocker_id = v_actor
+        union
+        select b.blocker_id from public.blocks b where b.blocked_id = v_actor
+    ), hits as (
+        select p.id, p.title, p.content, p.created_at,
+               studyhub_private.search_norm(p.title) as n_title,
+               studyhub_private.search_norm(p.content) as n_content
+        from public.posts p
+        join public.profiles a on a.id = p.author_id
+        where (studyhub_private.search_norm(p.title) like v_contains escape '\'
+               or studyhub_private.search_norm(p.content) like v_contains escape '\'
+               or (v_fuzzy and v_q operator(extensions.<%) studyhub_private.search_norm(p.title)))
+          and (p.author_id = v_actor
+               or (not a.is_banned
+                   and not exists (select 1 from blocked x where x.peer_id = p.author_id)
+                   and case studyhub_private.post_visibility(p.type)
+                       when 'public' then true
+                       when 'friends' then exists (select 1 from viewer_friends vf where vf.peer_id = p.author_id)
+                       else false
+                   end))
+    ), ordered as (
+        select h.*, row_number() over (order by
+            case when h.n_title like v_like || '%' escape '\' or h.n_content like v_like || '%' escape '\' then 1
+                 when h.n_title like v_contains escape '\' or h.n_content like v_contains escape '\' then 2
+                 else 3 end,
+            (strpos(lower(h.title), v_raw) > 0 or strpos(lower(coalesce(h.content, '')), v_raw) > 0) desc,
+            extensions.word_similarity(v_q, h.n_title) desc,
+            h.created_at desc, h.id) as rn
+        from hits h
+    )
+    -- Build the row JSON only for the returned page.
+    select jsonb_build_object(
+        'items', coalesce(jsonb_agg(to_jsonb(p) order by o.rn)
+            filter (where o.rn > p_offset and o.rn <= p_offset + v_size), '[]'::jsonb),
+        'has_more', coalesce(bool_or(o.rn > p_offset + v_size), false) and p_offset + v_size < 100)
+    into v_result
+    from ordered o
+    join public.posts p on p.id = o.id
+    where o.rn <= p_offset + v_size + 1;
+    return v_result;
+end;
+$$;
+
+create or replace function public.search_documents(p_query text, p_limit integer default 20, p_offset integer default 0)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+set pg_trgm.word_similarity_threshold = '0.5'
+as $$
+declare
+    v_actor uuid := studyhub_private.friend_actor();
+    v_q text; v_like text; v_raw text; v_size integer; v_contains text; v_fuzzy boolean;
+    v_result jsonb;
+begin
+    select i.q, i.q_like, i.q_raw, i.page_size into v_q, v_like, v_raw, v_size
+    from studyhub_private.search_input(p_query, p_limit, p_offset) i;
+    if char_length(v_q) < 2 or v_size = 0 then
+        return jsonb_build_object('items', '[]'::jsonb, 'has_more', false);
+    end if;
+    v_contains := '%' || v_like || '%';
+    -- Trigrams ignore symbols, so queries such as "100%" or "c++" stay literal.
+    v_fuzzy := char_length(v_q) >= 4 and v_q !~ '[^[:alnum:][:space:]]';
+
+    -- Candidates come from two index-friendly branches (file name, post title);
+    -- the parent post then gets the same visibility rules as search_posts.
+    with viewer_friends as materialized (
+        select case when f.requester_id = v_actor then f.addressee_id else f.requester_id end as peer_id
+        from public.friendships f
+        where f.status = 'accepted' and (f.requester_id = v_actor or f.addressee_id = v_actor)
+    ), blocked as materialized (
+        select b.blocked_id as peer_id from public.blocks b where b.blocker_id = v_actor
+        union
+        select b.blocker_id from public.blocks b where b.blocked_id = v_actor
+    ), candidates as (
+        select f.id from public.post_files f
+        where studyhub_private.search_file_norm(f.file_name) like v_contains escape '\'
+           or (v_fuzzy and v_q operator(extensions.<%) studyhub_private.search_file_norm(f.file_name))
+        union
+        select f.id from public.posts p join public.post_files f on f.post_id = p.id
+        where studyhub_private.search_norm(p.title) like v_contains escape '\'
+    ), hits as (
+        select f.id, f.file_name, f.file_type, f.file_size, f.created_at,
+               p.id as post_id, p.title as post_title, a.display_name as author_display_name,
+               studyhub_private.search_file_norm(f.file_name) as n_file,
+               studyhub_private.search_norm(p.title) as n_title
+        from candidates c
+        join public.post_files f on f.id = c.id
+        join public.posts p on p.id = f.post_id
+        join public.profiles a on a.id = p.author_id
+        where not (coalesce(f.file_type, '') ilike 'image/%'
+                   or f.file_name ~* '\.(png|jpe?g|webp|gif|bmp|heic)$')
+          and (p.author_id = v_actor
+               or (not a.is_banned
+                   and not exists (select 1 from blocked x where x.peer_id = p.author_id)
+                   and case studyhub_private.post_visibility(p.type)
+                       when 'public' then true
+                       when 'friends' then exists (select 1 from viewer_friends vf where vf.peer_id = p.author_id)
+                       else false
+                   end))
+    ), ordered as (
+        select h.*, row_number() over (order by
+            case when h.n_file like v_like || '%' escape '\' or h.n_title like v_like || '%' escape '\' then 1
+                 when h.n_file like v_contains escape '\' or h.n_title like v_contains escape '\' then 2
+                 else 3 end,
+            (strpos(lower(h.file_name), v_raw) > 0 or strpos(lower(h.post_title), v_raw) > 0) desc,
+            extensions.word_similarity(v_q, h.n_file) desc,
+            h.created_at desc, h.id) as rn
+        from hits h
+    )
+    select jsonb_build_object(
+        'items', coalesce(jsonb_agg(jsonb_build_object(
+                'id', o.id, 'file_name', o.file_name, 'file_type', o.file_type, 'file_size', o.file_size,
+                'created_at', o.created_at, 'post_id', o.post_id, 'post_title', o.post_title,
+                'author_display_name', o.author_display_name)
+            order by o.rn) filter (where o.rn > p_offset and o.rn <= p_offset + v_size), '[]'::jsonb),
+        'has_more', coalesce(bool_or(o.rn > p_offset + v_size), false) and p_offset + v_size < 100)
+    into v_result
+    from ordered o
+    where o.rn <= p_offset + v_size + 1;
+    return v_result;
+end;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- Grants. Helpers stay private; index expressions run with the writer's
+-- privileges, so writers of indexed tables need EXECUTE on the normalizers.
+-- ------------------------------------------------------------------------------
+revoke all on function
+    studyhub_private.search_norm(text), studyhub_private.search_file_norm(text),
+    studyhub_private.search_like_escape(text), studyhub_private.search_input(text, integer, integer),
+    studyhub_private.post_visibility(text)
+    from public, anon, authenticated;
+grant execute on function studyhub_private.search_norm(text), studyhub_private.search_file_norm(text)
+    to authenticated, service_role;
+
+revoke all on function
+    public.search_profiles(text, integer, integer), public.search_subjects(text, integer, integer),
+    public.search_posts(text, integer, integer), public.search_documents(text, integer, integer)
+    from public, anon, authenticated;
+grant execute on function
+    public.search_profiles(text, integer, integer), public.search_subjects(text, integer, integer),
+    public.search_posts(text, integer, integer), public.search_documents(text, integer, integer)
+    to authenticated;
 
 notify pgrst, 'reload schema';
 
@@ -2052,6 +2975,8 @@ create policy notifications_no_client_send on realtime.messages as restrictive f
 -- Keep unified-search normalizer grants (index expressions on posts/profiles/subjects/
 -- post_files call them as the writing user). Earlier sections revoke every
 -- studyhub_private function; see migration 20261107090000_restore_search_norm_grants.
+grant usage on schema studyhub_private to authenticated, service_role;
+
 do $$
 begin
   if to_regprocedure('studyhub_private.search_norm(text)') is not null then

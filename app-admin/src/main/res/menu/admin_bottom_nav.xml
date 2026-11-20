@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_dashboard"
+        android:icon="@drawable/ic_home"
+        android:title="Tổng quan" />
+
+    <item
+        android:id="@+id/nav_users"
+        android:icon="@drawable/ic_group"
+        android:title="Người dùng" />
+
+    <item
+        android:id="@+id/nav_posts"
+        android:icon="@drawable/ic_assignment"
+        android:title="Bài viết" />
+
+    <item
+        android:id="@+id/nav_subjects"
+        android:icon="@drawable/ic_book"
+        android:title="Môn học" />
+
+    <item
+        android:id="@+id/nav_reports"
+        android:icon="@drawable/ic_report"
+        android:title="Báo cáo" />
+</menu>

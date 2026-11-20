@@ -35,6 +35,7 @@ import com.doan.studyhub.user.ui.post.Post
 import com.doan.studyhub.user.ui.profile.EditProfileFragment
 import com.doan.studyhub.user.ui.profile.AvatarImageLoader
 import com.doan.studyhub.user.ui.profile.ProfileFragment
+import com.doan.studyhub.user.ui.search.SearchFragment
 import com.doan.studyhub.user.ui.settings.Settings
 import com.doan.studyhub.user.ui.subject.Subject
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -95,6 +96,13 @@ class Home : Fragment() {
             .addToBackStack("profile_detail")
             .commit()
         binding.drawerLayout.closeDrawer(GravityCompat.START)
+    }
+
+    // Opens search on top of the current screen; back returns to that screen.
+    fun openSearch(query: String? = null, tab: com.doan.studyhub.core.data.model.SearchTab? = null) {
+        val current = childFragmentManager.findFragmentById(R.id.containerMain)
+        val fragment = SearchFragment.newInstance(query, tab)
+        if (current is EditProfileFragment) current.requestLeave { openDetail(fragment) } else openDetail(fragment)
     }
 
     fun closeDetail() {
@@ -164,7 +172,18 @@ class Home : Fragment() {
             override fun onDrawerOpened(drawerView: View) = notifications.refresh()
         })
 
+        // Logo Click: Navigate to Home/Feed (or scroll to top if already on Feed)
+        binding.imgHeaderLogo.setOnClickListener {
+            val current = childFragmentManager.findFragmentById(R.id.containerMain)
+            if (current is Feed && childFragmentManager.backStackEntryCount == 0) {
+                current.scrollToTop()
+            } else {
+                requestRoot(Feed())
+            }
+        }
+
         // Top Bar Quick Access Action Icons
+        binding.btnHeaderSearch.setOnClickListener { openSearch() }
         binding.btnHeaderSubject.setOnClickListener { requestRoot(Subject()) }
         binding.btnHeaderFriend.setOnClickListener { requestRoot(Friend()) }
         binding.btnHeaderChat.setOnClickListener { requestRoot(Chat()) }

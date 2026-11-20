@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -26,6 +27,7 @@ import com.doan.studyhub.user.ui.home.Home
 import com.doan.studyhub.user.ui.profile.AvatarImageLoader
 import com.doan.studyhub.user.ui.profile.ProfileFragment
 import kotlinx.coroutines.launch
+import android.widget.PopupMenu
 
 class PostDetailFragment : Fragment() {
 
@@ -49,6 +51,7 @@ class PostDetailFragment : Fragment() {
     private var postOwnerId: String? = null
 
     private val commentRootIdById = mutableMapOf<String, String>()
+    private var isSavedPost: Boolean = false
 
     companion object {
         private const val ARG_POST_ID = "post_id"
@@ -88,7 +91,9 @@ class PostDetailFragment : Fragment() {
             onReplyClick = ::startReply,
             onEditClick = ::showEditCommentDialog,
             onDeleteClick = ::confirmDeleteComment,
-            onMarkBestAnswerClick = ::confirmMarkBestAnswer
+            onMarkBestAnswerClick = ::confirmMarkBestAnswer,
+            onReactionClick = ::handleCommentReaction,
+            onReactionSummaryClick = ::showCommentReactionUsers
         )
 
         binding.rvDetailComments.layoutManager =
@@ -249,6 +254,65 @@ class PostDetailFragment : Fragment() {
         binding.tvDetailTitle.text = post.title
         binding.tvDetailContent.text = post.content ?: ""
 
+        // Hiển thị và xử lý reaction của bài viết trong trang chi tiết.
+        renderPostReaction(
+            counts = detail.reactionCounts,
+            currentReaction = detail.currentUserReaction
+        )
+
+        binding.btnDetailPostReaction.setOnClickListener {
+            performDetailPostReaction("like")
+        }
+
+        binding.btnDetailPostReaction.setOnLongClickListener {
+            showDetailReactionPicker()
+            true
+        }
+
+        binding.tvDetailPostReactionSummary.setOnClickListener {
+            showDetailReactionUsers()
+        }
+
+        binding.tvDetailPostReactionSummary.setOnLongClickListener {
+            showDetailReactionUsers()
+            true
+        }
+
+        // Hashtags
+        if (detail.hashtags.isNotEmpty()) {
+            binding.chipGroupDetailHashtags.isVisible = true
+            binding.chipGroupDetailHashtags.removeAllViews()
+            detail.hashtags.forEach { tag ->
+                val chip = com.google.android.material.chip.Chip(requireContext()).apply {
+                    text = "#$tag"
+                    isClickable = true
+                    isCheckable = false
+                    textSize = 12f
+                    setChipBackgroundColorResource(R.color.surface_variant)
+                    setTextColor(ContextCompat.getColor(context, R.color.primary))
+                    setOnClickListener {
+                        (parentFragment as? Home)?.openSearch(
+                            query = "#$tag",
+                            tab = com.doan.studyhub.core.data.model.SearchTab.POSTS
+                        )
+                    }
+                }
+                binding.chipGroupDetailHashtags.addView(chip)
+            }
+        } else {
+            binding.chipGroupDetailHashtags.isVisible = false
+            binding.chipGroupDetailHashtags.removeAllViews()
+        }
+
+        // Bookmark
+        isSavedPost = detail.isSavedByCurrentUser
+        updateBookmarkIcon(isSavedPost)
+        binding.btnBookmarkPostDetail.setOnClickListener {
+            toggleBookmark()
+        }
+        // Post Reaction Summary
+        loadPostReactionSummary()
+
         AvatarImageLoader.show(
             fragment = this,
             view = binding.imgDetailAuthorAvatar,
@@ -339,6 +403,177 @@ class PostDetailFragment : Fragment() {
         }
     }
 
+    // Tải và hiển thị tổng số cảm xúc của bài viết.
+    private fun loadPostReactionSummary() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val summary = postRepository
+                    .getPostReactionSummaries(listOf(postId))[postId]
+
+                if (_binding == null) return@launch
+
+                if (summary == null || summary.totalCount <= 0) {
+                    binding.tvDetailPostReactionSummary.isVisible = false
+                    return@launch
+                }
+
+                val emojiByType = listOf(
+                    "like" to "👍",
+                    "love" to "❤️",
+                    "haha" to "😂",
+                    "sad" to "😢",
+                    "angry" to "😡"
+                )
+
+                val reactionText = emojiByType.mapNotNull { (type, emoji) ->
+                    val count = summary.countsByType[type] ?: 0
+                    if (count > 0) "$emoji $count" else null
+                }
+
+                binding.tvDetailPostReactionSummary.text =
+                    "${summary.totalCount} cảm xúc  ·  ${reactionText.joinToString("   ")}"
+
+                binding.tvDetailPostReactionSummary.isVisible = true
+
+                binding.tvDetailPostReactionSummary.setOnClickListener {
+                    showPostReactionFilter()
+                }
+
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _binding?.tvDetailPostReactionSummary?.isVisible = false
+            }
+        }
+    }
+
+    // Hiển thị bộ lọc danh sách người đã thả cảm xúc.
+    private fun showPostReactionFilter() {
+        val filters = arrayOf(
+            "Tất cả cảm xúc",
+            "👍 Thích",
+            "❤️ Yêu thích",
+            "😂 Haha",
+            "😢 Buồn",
+            "😡 Phẫn nộ"
+        )
+
+        val reactionTypes = listOf(
+            null,
+            "like",
+            "love",
+            "haha",
+            "sad",
+            "angry"
+        )
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Lọc người đã cảm xúc")
+            .setItems(filters) { _, selectedIndex ->
+                loadPostReactionUsers(reactionTypes[selectedIndex])
+            }
+            .setNegativeButton("Đóng", null)
+            .show()
+    }
+
+    // Tải danh sách người đã thả cảm xúc.
+    private fun loadPostReactionUsers(reactionType: String?) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val reactors = postRepository.getPostReactors(
+                    postId = postId,
+                    reactionType = reactionType,
+                    limit = 100,
+                    offset = 0
+                )
+
+                if (!isAdded) return@launch
+
+                if (reactors.isEmpty()) {
+                    Toast.makeText(
+                        requireContext(),
+                        "Chưa có người dùng nào.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@launch
+                }
+
+                val names = reactors.map { reactor ->
+                    val emoji = when (reactor.reactionType) {
+                        "like" -> "👍"
+                        "love" -> "❤️"
+                        "haha" -> "😂"
+                        "sad" -> "😢"
+                        "angry" -> "😡"
+                        else -> "👍"
+                    }
+
+                    val name = reactor.displayName
+                        .ifBlank { "@${reactor.username}" }
+
+                    "$emoji  $name (@${reactor.username})"
+                }.toTypedArray()
+
+                AlertDialog.Builder(requireContext())
+                    .setTitle("Người đã cảm xúc (${reactors.size})")
+                    .setItems(names, null)
+                    .setPositiveButton("Đóng", null)
+                    .show()
+
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (!isAdded) return@launch
+
+                Toast.makeText(
+                    requireContext(),
+                    e.message ?: "Không thể tải danh sách cảm xúc.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun updateBookmarkIcon(isSaved: Boolean) {
+        if (isSaved) {
+            binding.btnBookmarkPostDetail.setImageResource(R.drawable.ic_bookmark_filled)
+            binding.btnBookmarkPostDetail.setColorFilter(
+                ContextCompat.getColor(requireContext(), R.color.primary)
+            )
+        } else {
+            binding.btnBookmarkPostDetail.setImageResource(R.drawable.ic_bookmark_outline)
+            binding.btnBookmarkPostDetail.setColorFilter(
+                ContextCompat.getColor(requireContext(), R.color.text_secondary)
+            )
+        }
+    }
+
+    private fun toggleBookmark() {
+        if (postId.isBlank()) return
+        val target = !isSavedPost
+        updateBookmarkIcon(target)
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val newStatus = postRepository.toggleSavePost(postId)
+                isSavedPost = newStatus
+                updateBookmarkIcon(newStatus)
+                Toast.makeText(
+                    requireContext(),
+                    if (newStatus) "Đã lưu bài viết" else "Đã bỏ lưu bài viết",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } catch (e: Exception) {
+                updateBookmarkIcon(isSavedPost)
+                Toast.makeText(
+                    requireContext(),
+                    e.message ?: "Không thể thực hiện lưu bài viết",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
     // Tải danh sách bình luận và tác giả.
 
     // Tải danh sách bình luận và tác giả.
@@ -384,10 +619,22 @@ class PostDetailFragment : Fragment() {
                 }
             }
 
+            val commentIds = comments.mapNotNull { it.id }.distinct()
+            val summaries = if (commentIds.isNotEmpty()) {
+                commentRepository.getCommentReactionSummaries(commentIds)
+            } else {
+                emptyMap()
+            }
+
             val commentItems = comments.map { comment ->
+                val summary = comment.id?.let { summaries[it] }
+
                 CommentWithAuthor(
                     comment = comment,
-                    author = authorsById[comment.userId]
+                    author = authorsById[comment.userId],
+                    reactionCount = summary?.totalCount ?: 0,
+                    reactionCounts = summary?.countsByType ?: emptyMap(),
+                    currentUserReaction = summary?.currentUserReaction
                 )
             }
 
@@ -405,9 +652,7 @@ class PostDetailFragment : Fragment() {
 
                 orderedComments.add(item)
 
-                val replies = repliesByParent[commentId].orEmpty()
-
-                replies.forEach { reply ->
+                repliesByParent[commentId].orEmpty().forEach { reply ->
                     appendCommentAndReplies(reply)
                 }
             }
@@ -432,11 +677,8 @@ class PostDetailFragment : Fragment() {
             binding.tvDetailCommentCount.text =
                 "${comments.size} bình luận"
 
-            binding.tvDetailCommentsEmpty.isVisible =
-                comments.isEmpty()
-
-            binding.rvDetailComments.isVisible =
-                comments.isNotEmpty()
+            binding.tvDetailCommentsEmpty.isVisible = comments.isEmpty()
+            binding.rvDetailComments.isVisible = comments.isNotEmpty()
 
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -448,7 +690,6 @@ class PostDetailFragment : Fragment() {
             binding.btnRetryDetailComments.isVisible = true
             binding.rvDetailComments.isVisible = false
             binding.tvDetailCommentsEmpty.isVisible = false
-
         } finally {
             _binding?.progressDetailComments?.isVisible = false
         }
@@ -660,26 +901,37 @@ class PostDetailFragment : Fragment() {
             return
         }
 
-
+        val isRemoving = item.comment.isBestAnswer
 
         AlertDialog.Builder(requireContext())
-            .setTitle("Chọn câu trả lời hay nhất")
+            .setTitle(
+                if (isRemoving) "Bỏ câu trả lời hay nhất"
+                else "Chọn câu trả lời hay nhất"
+            )
             .setMessage(
-                "Bạn có chắc chắn muốn chọn bình luận này làm câu trả lời hay nhất không?"
+                if (isRemoving) {
+                    "Bạn có chắc muốn bỏ đánh dấu câu trả lời hay nhất này không?"
+                } else {
+                    "Bạn có chắc muốn chọn bình luận này làm câu trả lời hay nhất không? Lựa chọn cũ (nếu có) sẽ được thay thế."
+                }
             )
             .setPositiveButton("Xác nhận") { _, _ ->
                 viewLifecycleOwner.lifecycleScope.launch {
                     try {
                         commentRepository.markBestAnswer(
                             postId = postId,
-                            commentId = commentId
+                            commentId = if (isRemoving) null else commentId
                         )
 
                         loadComments()
 
                         Toast.makeText(
                             requireContext(),
-                            "Đã chọn câu trả lời hay nhất",
+                            if (isRemoving) {
+                                "Đã bỏ câu trả lời hay nhất"
+                            } else {
+                                "Đã chọn câu trả lời hay nhất"
+                            },
                             Toast.LENGTH_SHORT
                         ).show()
 
@@ -688,7 +940,7 @@ class PostDetailFragment : Fragment() {
                     } catch (e: Exception) {
                         Toast.makeText(
                             requireContext(),
-                            "Không thể chọn câu trả lời hay nhất: ${e.message}",
+                            "Không thể cập nhật câu trả lời hay nhất: ${e.message}",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
@@ -740,8 +992,305 @@ class PostDetailFragment : Fragment() {
         }
     }
 
+    // Hiển thị nút reaction và thống kê reaction của bài viết.
+    private fun renderPostReaction(
+        counts: Map<String, Int>,
+        currentReaction: String?
+    ) {
+        val reactionInfo = when (currentReaction) {
+            "like" -> "👍 Thích"
+            "love" -> "❤️ Yêu thích"
+            "haha" -> "😂 Haha"
+            "sad" -> "😢 Buồn"
+            "angry" -> "😡 Phẫn nộ"
+            else -> "👍 Thích"
+        }
+
+        binding.btnDetailPostReaction.text = reactionInfo
+
+        val total = counts.values.sum()
+
+        val summaryParts = listOf(
+            "like" to "👍",
+            "love" to "❤️",
+            "haha" to "😂",
+            "sad" to "😢",
+            "angry" to "😡"
+        ).mapNotNull { (type, emoji) ->
+            val count = counts[type] ?: 0
+            if (count > 0) "$emoji $count" else null
+        }
+
+        if (total > 0) {
+            binding.tvDetailPostReactionSummary.text =
+                summaryParts.joinToString("     ") +
+                        "     ·     $total lượt cảm xúc"
+
+            binding.tvDetailPostReactionSummary.isVisible = true
+        } else {
+            binding.tvDetailPostReactionSummary.isVisible = false
+        }
+
+        val color = if (currentReaction != null) {
+            R.color.primary
+        } else {
+            R.color.text_secondary
+        }
+
+        binding.btnDetailPostReaction.setTextColor(
+            ContextCompat.getColor(requireContext(), color)
+        )
+    }
+
+    // Chọn reaction trực tiếp.
+    private fun performDetailPostReaction(reactionType: String) {
+        if (postId.isBlank()) return
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                postRepository.setPostReaction(
+                    postId = postId,
+                    reactionType = reactionType
+                )
+
+                refreshDetailPostReaction()
+
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Toast.makeText(
+                    requireContext(),
+                    "Không thể gửi cảm xúc: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    // Tải lại thống kê reaction sau khi người dùng thao tác.
+    private suspend fun refreshDetailPostReaction() {
+        val summaries = postRepository.getPostReactionSummaries(
+            listOf(postId)
+        )
+
+        val summary = summaries[postId]
+
+        renderPostReaction(
+            counts = summary?.countsByType ?: emptyMap(),
+            currentReaction = summary?.currentUserReaction
+        )
+    }
+
+    // Menu chọn 5 loại reaction.
+    private fun showDetailReactionPicker() {
+        val popup = PopupMenu(
+            requireContext(),
+            binding.btnDetailPostReaction
+        )
+
+        popup.menu.add(0, 1, 0, "👍 Thích")
+        popup.menu.add(0, 2, 1, "❤️ Yêu thích")
+        popup.menu.add(0, 3, 2, "😂 Haha")
+        popup.menu.add(0, 4, 3, "😢 Buồn")
+        popup.menu.add(0, 5, 4, "😡 Phẫn nộ")
+
+        popup.setOnMenuItemClickListener { item ->
+            val reactionType = when (item.itemId) {
+                1 -> "like"
+                2 -> "love"
+                3 -> "haha"
+                4 -> "sad"
+                5 -> "angry"
+                else -> return@setOnMenuItemClickListener false
+            }
+
+            performDetailPostReaction(reactionType)
+            true
+        }
+
+        popup.show()
+    }
+
+    // Chọn bộ lọc danh sách người đã reaction.
+    private fun showDetailReactionUsers() {
+        val filters = arrayOf(
+            "Tất cả",
+            "👍 Thích",
+            "❤️ Yêu thích",
+            "😂 Haha",
+            "😢 Buồn",
+            "😡 Phẫn nộ"
+        )
+
+        val reactionTypes = listOf(
+            null,
+            "like",
+            "love",
+            "haha",
+            "sad",
+            "angry"
+        )
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Lọc người đã cảm xúc")
+            .setItems(filters) { _, selectedIndex ->
+                loadDetailPostReactors(
+                    reactionTypes[selectedIndex]
+                )
+            }
+            .setNegativeButton("Đóng", null)
+            .show()
+    }
+
+    // Tải danh sách người đã reaction.
+    private fun loadDetailPostReactors(reactionType: String?) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val reactors = postRepository.getPostReactors(
+                    postId = postId,
+                    reactionType = reactionType,
+                    limit = 100,
+                    offset = 0
+                )
+
+                val names = reactors.map { reactor ->
+                    val name = reactor.displayName
+                        .takeIf { it.isNotBlank() }
+                        ?: "@${reactor.username}"
+
+                    val emoji = when (reactor.reactionType) {
+                        "like" -> "👍"
+                        "love" -> "❤️"
+                        "haha" -> "😂"
+                        "sad" -> "😢"
+                        "angry" -> "😡"
+                        else -> "•"
+                    }
+
+                    "$emoji  $name"
+                }.toTypedArray()
+
+                AlertDialog.Builder(requireContext())
+                    .setTitle("Người đã cảm xúc (${reactors.size})")
+                    .setItems(names, null)
+                    .setPositiveButton("Đóng", null)
+                    .show()
+
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Toast.makeText(
+                    requireContext(),
+                    "Không thể tải danh sách reaction: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
     override fun onDestroyView() {
         _binding = null
         super.onDestroyView()
+    }
+
+    // Xử lý reaction
+    private fun handleCommentReaction(
+        item: CommentWithAuthor,
+        reactionType: String
+    ) {
+        val commentId = item.comment.id ?: return
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                commentRepository.setCommentReaction(
+                    commentId = commentId,
+                    reactionType = reactionType
+                )
+
+                loadComments()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Toast.makeText(
+                    requireContext(),
+                    "Không thể gửi cảm xúc: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    // Danh sách reaction
+    private fun showCommentReactionUsers(item: CommentWithAuthor) {
+        val commentId = item.comment.id ?: return
+
+        val filters = arrayOf(
+            "Tất cả",
+            "👍 Thích",
+            "❤️ Yêu thích",
+            "😂 Haha",
+            "😢 Buồn",
+            "😡 Phẫn nộ"
+        )
+
+        val reactionTypes = listOf(
+            null,
+            "like",
+            "love",
+            "haha",
+            "sad",
+            "angry"
+        )
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Lọc người đã cảm xúc")
+            .setItems(filters) { _, selectedIndex ->
+                val selectedType = reactionTypes[selectedIndex]
+
+                viewLifecycleOwner.lifecycleScope.launch {
+                    try {
+                        val reactors = commentRepository.getCommentReactors(
+                            commentId = commentId,
+                            reactionType = selectedType,
+                            limit = 100,
+                            offset = 0
+                        )
+
+                        val names = reactors.map { reactor ->
+                            val name = reactor.displayName
+                                .takeIf { it.isNotBlank() }
+                                ?: "@${reactor.username}"
+
+                            val emoji = when (reactor.reactionType) {
+                                "like" -> "👍"
+                                "love" -> "❤️"
+                                "haha" -> "😂"
+                                "sad" -> "😢"
+                                "angry" -> "😡"
+                                else -> "•"
+                            }
+
+                            "$emoji  $name"
+                        }.toTypedArray()
+
+                        AlertDialog.Builder(requireContext())
+                            .setTitle("Người đã cảm xúc (${reactors.size})")
+                            .setItems(names, null)
+                            .setPositiveButton("Đóng", null)
+                            .show()
+
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Toast.makeText(
+                            requireContext(),
+                            "Không thể tải danh sách: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+            .setNegativeButton("Đóng", null)
+            .show()
     }
 }

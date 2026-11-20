@@ -115,11 +115,21 @@
 
         <ImageButton
             android:id="@+id/btnPickImage"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Gửi ảnh"
             android:src="@drawable/ic_image"
+            app:tint="@color/primary" />
+
+        <ImageButton
+            android:id="@+id/btnPickDocument"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginStart="2dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Gửi tài liệu"
+            android:src="@drawable/ic_attach_file"
             app:tint="@color/primary" />
 
         <EditText

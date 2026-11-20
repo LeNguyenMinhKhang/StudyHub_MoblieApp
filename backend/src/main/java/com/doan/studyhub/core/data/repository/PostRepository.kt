@@ -5,6 +5,8 @@ import com.doan.studyhub.core.data.model.Post
 import com.doan.studyhub.core.data.model.PostDetail
 import com.doan.studyhub.core.data.model.PostFile
 import com.doan.studyhub.core.data.remote.PostRemoteDataSource
+import com.doan.studyhub.core.data.model.PostReactionSummary
+import com.doan.studyhub.core.data.model.PostReactor
 
 class PostRepository(
     private val remoteDataSource: PostRemoteDataSource = PostRemoteDataSource()
@@ -23,17 +25,48 @@ class PostRepository(
         return remoteDataSource.getPostDetail(postId)
     }
 
-    // Lấy số lượt Like và trạng thái Like của người dùng
-    suspend fun getLikeSummary(
-        postIds: List<String>,
-        currentUserId: String?
-    ): Map<String, Pair<Int, Boolean>> {
-        return remoteDataSource.getLikeSummary(postIds, currentUserId)
+    // Lấy số lượt reaction
+    suspend fun getPostReactionSummaries(
+        postIds: List<String>
+    ): Map<String, PostReactionSummary> {
+        return remoteDataSource.getPostReactionSummaries(postIds)
     }
 
-    // Like hoặc Unlike bài viết
-    suspend fun toggleLike(postId: String): Boolean {
-        return remoteDataSource.toggleLike(postId)
+    suspend fun setPostReaction(
+        postId: String,
+        reactionType: String?
+    ): String? {
+        return remoteDataSource.setPostReaction(postId, reactionType)
+    }
+
+    suspend fun toggleLike(postId: String): Boolean =
+        remoteDataSource.toggleLike(postId)
+
+    suspend fun getPostReactors(
+        postId: String,
+        reactionType: String? = null,
+        limit: Int = 50,
+        offset: Int = 0
+    ): List<PostReactor> {
+        return remoteDataSource.getPostReactors(
+            postId = postId,
+            reactionType = reactionType,
+            limit = limit,
+            offset = offset
+        )
+    }
+
+    // Lưu hoặc bỏ lưu bài viết
+    suspend fun toggleSavePost(postId: String): Boolean {
+        return remoteDataSource.toggleSavePost(postId)
+    }
+
+    // Lấy danh sách bài viết đã lưu
+    suspend fun getSavedPosts(
+        limit: Long? = null,
+        offset: Long? = null
+    ): List<PostDetail> {
+        return remoteDataSource.getSavedPosts(limit, offset)
     }
 
     suspend fun createPost(
@@ -41,7 +74,8 @@ class PostRepository(
         subjectId: String?,
         type: String?,
         title: String,
-        content: String?
+        content: String?,
+        hashtags: List<String> = emptyList()
     ): Post {
         val request = com.doan.studyhub.core.data.model.CreatePostRequest(
             authorId = authorId,
@@ -50,7 +84,7 @@ class PostRepository(
             title = title,
             content = content
         )
-        return remoteDataSource.createPost(request)
+        return remoteDataSource.createPost(request, hashtags)
     }
 
     suspend fun uploadPostFile(
@@ -79,4 +113,6 @@ class PostRepository(
     suspend fun deletePostFile(fileId: String) {
         remoteDataSource.deletePostFile(fileId)
     }
+
+
 }

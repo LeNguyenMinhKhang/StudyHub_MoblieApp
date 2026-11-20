@@ -1,7 +1,9 @@
 package com.doan.studyhub.user.ui.chat
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -20,6 +22,7 @@ import com.doan.studyhub.user.R
 import com.doan.studyhub.user.databinding.FragmentDirectChatBinding
 import com.doan.studyhub.user.ui.home.Home
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class DirectChatFragment : Fragment() {
 
@@ -36,6 +39,10 @@ class DirectChatFragment : Fragment() {
 
     private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { handleSelectedImage(it) }
+    }
+
+    private val pickDocumentLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { handleSelectedDocument(it) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,6 +75,11 @@ class DirectChatFragment : Fragment() {
         viewModel.initChat(conversationId, targetUserId)
     }
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.refreshReadStatus()
+    }
+
     private fun setupToolbar() {
         binding.btnBack.setOnClickListener {
             val home = parentFragment as? Home
@@ -93,7 +105,13 @@ class DirectChatFragment : Fragment() {
         messageAdapter = MessageAdapter(
             currentUserId = currentUserId,
             onImageClick = { imageUrl ->
-                // Image preview or action
+                openUrlInBrowserOrViewer(imageUrl)
+            },
+            onDocumentClick = { fileUrl, _ ->
+                openUrlInBrowserOrViewer(fileUrl)
+            },
+            onRetryClick = { failedMsg ->
+                viewModel.retrySendMessage(failedMsg)
             }
         )
 
@@ -116,13 +134,16 @@ class DirectChatFragment : Fragment() {
         binding.btnPickImage.setOnClickListener {
             pickImageLauncher.launch("image/*")
         }
+
+        binding.btnPickDocument.setOnClickListener {
+            pickDocumentLauncher.launch("*/*")
+        }
     }
 
     private fun handleSelectedImage(uri: Uri) {
         try {
             val inputStream = requireContext().contentResolver.openInputStream(uri)
-            val bytes = inputStream?.readBytes()
-            inputStream?.close()
+            val bytes = inputStream?.use { it.readBytes() }
 
             if (bytes != null && bytes.isNotEmpty()) {
                 val fileName = "chat_img_${System.currentTimeMillis()}.jpg"
@@ -134,6 +155,65 @@ class DirectChatFragment : Fragment() {
             throw e
         } catch (e: Exception) {
             Toast.makeText(requireContext(), "Lỗi khi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun handleSelectedDocument(uri: Uri) {
+        try {
+            val contentResolver = requireContext().contentResolver
+            var fileName = "Tai_lieu_${System.currentTimeMillis()}"
+            var fileSize = 0L
+
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (cursor.moveToFirst()) {
+                    if (nameIndex >= 0) fileName = cursor.getString(nameIndex) ?: fileName
+                    if (sizeIndex >= 0) fileSize = cursor.getLong(sizeIndex)
+                }
+            }
+
+            // Giới hạn 20MB
+            val maxSizeBytes = 20 * 1024 * 1024L
+            if (fileSize > maxSizeBytes) {
+                Toast.makeText(requireContext(), "Dung lượng tệp vượt quá 20MB. Vui lòng chọn tệp nhỏ hơn!", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes == null || bytes.isEmpty()) {
+                Toast.makeText(requireContext(), "Không thể đọc dữ liệu tệp", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val formattedSize = formatFileSize(fileSize)
+            val mimeType = contentResolver.getType(uri)
+
+            viewModel.sendDocument(fileName, bytes, formattedSize, mimeType)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Lỗi khi xử lý tài liệu: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun formatFileSize(size: Long): String {
+        return when {
+            size >= 1024 * 1024 -> String.format(Locale.US, "%.1f MB", size / (1024.0 * 1024.0))
+            size >= 1024 -> String.format(Locale.US, "%.0f KB", size / 1024.0)
+            size > 0 -> "$size B"
+            else -> "Tệp"
+        }
+    }
+
+    private fun openUrlInBrowserOrViewer(url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Không thể mở liên kết này", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -194,4 +274,3 @@ class DirectChatFragment : Fragment() {
         }
     }
 }
-

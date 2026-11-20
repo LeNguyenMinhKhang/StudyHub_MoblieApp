@@ -1,3 +1,4 @@
+
 package com.doan.studyhub.user.ui.chat
 
 import android.os.Bundle
@@ -48,19 +49,23 @@ class Chat : Fragment() {
 
     private fun setupRecyclerView() {
         adapter = ConversationAdapter { item ->
+
+            // Mở hội thoại bằng conversationId.
+            // targetUserId không cần thiết khi đã có conversationId.
             val detailFragment = DirectChatFragment.newInstance(
                 conversationId = item.conversationId,
-                targetUserId = item.targetUserId,
-                targetName = item.targetDisplayName,
-                targetAvatar = item.targetAvatarUrl
+                targetUserId = null,
+                targetName = item.title,
+                targetAvatar = item.avatarUrl
             )
+
             val home = parentFragment as? Home
-            if (home != null) {
-                home.openDetail(detailFragment)
-            }
+            home?.openDetail(detailFragment)
         }
 
-        binding.rvConversations.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvConversations.layoutManager =
+            LinearLayoutManager(requireContext())
+
         binding.rvConversations.adapter = adapter
     }
 
@@ -74,17 +79,28 @@ class Chat : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
+
                     binding.swipeRefreshLayout.isRefreshing = false
-                    binding.progressBar.isVisible = state.isLoading && adapter.itemCount == 0
+
+                    binding.progressBar.isVisible =
+                        state.isLoading && adapter.itemCount == 0
 
                     val hasData = state.conversations.isNotEmpty()
+
                     binding.rvConversations.isVisible = hasData
-                    binding.layoutEmptyState.isVisible = !state.isLoading && !hasData
+
+                    binding.layoutEmptyState.isVisible =
+                        !state.isLoading && !hasData
 
                     adapter.submitList(state.conversations)
 
                     state.errorMessage?.let { msg ->
-                        Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            requireContext(),
+                            msg,
+                            Toast.LENGTH_SHORT
+                        ).show()
+
                         viewModel.clearErrorMessage()
                     }
                 }

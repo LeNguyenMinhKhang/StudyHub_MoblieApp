@@ -78,4 +78,19 @@
     <string name="post_share_footer">— Chia sẻ từ StudyHub</string>
     <string name="post_share_not_public">Chỉ có thể chia sẻ bài viết công khai.</string>
     <string name="post_share_unavailable">Không có ứng dụng nào để chia sẻ.</string>
+
+    <string name="search_open">Tìm kiếm</string>
+    <string name="search_back">Quay lại</string>
+    <string name="search_hint">Tìm người dùng, bài viết, môn học, tài liệu</string>
+    <string name="search_tab_users">Người dùng</string>
+    <string name="search_tab_posts">Bài viết</string>
+    <string name="search_tab_subjects">Môn học</string>
+    <string name="search_tab_documents">Tài liệu</string>
+    <string name="search_idle">Nhập ít nhất 2 ký tự để tìm kiếm.</string>
+    <string name="search_empty">Không tìm thấy kết quả cho “%1$s”.</string>
+    <string name="search_loading">Đang tìm kiếm</string>
+    <string name="search_loading_more">Đang tải thêm kết quả</string>
+    <string name="search_document_icon">Tài liệu đính kèm</string>
+    <string name="search_document_post">Trong bài: %1$s</string>
+    <string name="search_document_meta">%1$s · %2$s</string>
 </resources>

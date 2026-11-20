@@ -67,6 +67,18 @@ open class ChatRemoteDataSource(
         return storage.from("chat").publicUrl(path)
     }
 
+    open suspend fun uploadChatDocument(conversationId: String, fileName: String, bytes: ByteArray, mimeType: String? = null): String {
+        val sanitizedName = fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+        val path = "$conversationId/docs/${System.currentTimeMillis()}_$sanitizedName"
+        storage.from("chat").upload(path = path, data = bytes) {
+            upsert = false
+            mimeType?.let {
+                contentType = io.ktor.http.ContentType.parse(it)
+            }
+        }
+        return storage.from("chat").publicUrl(path)
+    }
+
     open suspend fun markConversationRead(conversationId: String) {
         postgrest.rpc(
             "mark_conversation_read",
@@ -76,15 +88,19 @@ open class ChatRemoteDataSource(
 
     open fun observeMessages(conversationId: String): Flow<ChatMessage> = flow {
         val channel = realtime.channel("chat:$conversationId")
-        val changeFlow = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
+        val changeFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = "messages"
             filter(FilterOperation("conversation_id", FilterOperator.EQ, conversationId))
         }
         channel.subscribe()
         try {
             changeFlow.collect { action ->
-                val message = action.decodeRecord<ChatMessage>()
-                if (message.conversationId == conversationId) {
+                val message = when (action) {
+                    is PostgresAction.Insert -> action.decodeRecord<ChatMessage>()
+                    is PostgresAction.Update -> action.decodeRecord<ChatMessage>()
+                    else -> null
+                }
+                if (message != null && message.conversationId == conversationId) {
                     emit(message)
                 }
             }
