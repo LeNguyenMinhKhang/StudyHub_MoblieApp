@@ -74,4 +74,8 @@
     <string name="settings_saving">Đang lưu…</string>
     <string name="settings_save_failed">Chưa lưu được cài đặt. Đang hiển thị cài đặt đã lưu gần nhất.</string>
     <string name="notification_generic">%1$s có hoạt động mới.</string>
+    <string name="post_share_title">Chia sẻ bài viết</string>
+    <string name="post_share_footer">— Chia sẻ từ StudyHub</string>
+    <string name="post_share_not_public">Chỉ có thể chia sẻ bài viết công khai.</string>
+    <string name="post_share_unavailable">Không có ứng dụng nào để chia sẻ.</string>
 </resources>

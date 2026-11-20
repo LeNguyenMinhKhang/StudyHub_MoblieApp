@@ -420,11 +420,7 @@ class PostAdapter(
 
             // Share
             binding.btnPostShare.setOnClickListener {
-                Toast.makeText(
-                    fragment.requireContext(),
-                    "Đã sao chép liên kết bài viết",
-                    Toast.LENGTH_SHORT
-                ).show()
+                fragment.sharePost(item, authorName, currentUserId)
             }
 
             itemView.setOnClickListener {
