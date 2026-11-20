@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="group_title">Nhóm học tập</string>
+    <string name="group_section">Danh sách nhóm</string>
+    <string name="group_mine">Nhóm của tôi</string>
+    <string name="group_incoming">Lời mời nhận được</string>
+    <string name="group_pending">Lời mời đang chờ</string>
+    <string name="group_friends">Mời bạn bè</string>
+    <string name="group_create">Tạo nhóm</string>
+    <string name="group_name">Tên nhóm (1–100 ký tự)</string>
+    <string name="group_description">Mô tả (không bắt buộc, tối đa 1.000 ký tự)</string>
+    <string name="group_subject">Môn học</string>
+    <string name="group_choose_subject">Chọn môn học</string>
+    <string name="group_previous_subject">Môn đã chọn trước đó (cần kiểm tra lại)</string>
+    <string name="group_reload_subjects">Tải lại môn học</string>
+    <string name="group_no_subjects">Chưa có môn học đang hoạt động.</string>
+    <string name="group_back">Quay lại</string>
+    <string name="group_more">Tải thêm</string>
+    <string name="group_retry">Tải lại</string>
+    <string name="group_loading">Đang tải…</string>
+    <string name="group_saving">Đang lưu…</string>
+    <string name="group_empty">Chưa có mục nào trong danh sách này.</string>
+    <string name="group_open">Mở nhóm</string>
+    <string name="group_accept">Chấp nhận</string>
+    <string name="group_decline">Từ chối</string>
+    <string name="group_invite">Gửi lời mời</string>
+    <string name="group_revoke">Thu hồi lời mời</string>
+    <string name="group_remove">Xóa khỏi nhóm</string>
+    <string name="group_transfer">Chuyển trưởng nhóm</string>
+    <string name="group_save">Lưu thông tin</string>
+    <string name="group_members">Thành viên</string>
+    <string name="group_leave">Rời nhóm</string>
+    <string name="group_archive">Giải tán nhóm</string>
+    <string name="group_owner">Trưởng nhóm</string>
+    <string name="group_member">Thành viên</string>
+    <string name="group_summary">%1$s · %2$d thành viên · %3$s</string>
+    <string name="group_confirm">Xác nhận</string>
+    <string name="group_cancel">Hủy</string>
+    <string name="group_confirm_remove">Xóa %1$s khỏi nhóm? Người này sẽ mất quyền truy cập nhóm.</string>
+    <string name="group_confirm_transfer">Chuyển trưởng nhóm cho %1$s? Bạn sẽ trở thành thành viên thường.</string>
+    <string name="group_confirm_leave">Rời nhóm %1$s? Bạn cần lời mời mới để tham gia lại.</string>
+    <string name="group_confirm_archive">Giải tán nhóm %1$s? Tất cả thành viên sẽ mất quyền truy cập.</string>
+    <string name="group_closed">Đã rời nhóm hoặc nhóm không còn khả dụng.</string>
+    <string name="group_action_for">%1$s: %2$s</string>
+    <string name="group_action_done">Đã hoàn tất: %1$s</string>
+    <string name="group_saved">Đã lưu thông tin nhóm.</string>
+</resources>

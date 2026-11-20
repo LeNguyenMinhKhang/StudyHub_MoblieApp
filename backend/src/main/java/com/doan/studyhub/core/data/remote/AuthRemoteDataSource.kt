@@ -6,9 +6,11 @@ import com.doan.studyhub.core.data.model.Profile
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.user.UserSession
+import kotlinx.coroutines.withTimeoutOrNull
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlin.time.Duration.Companion.seconds
 
 // Layer gọi trực tiếp API của Supabase Auth và Postgrest.
 class AuthRemoteDataSource {
@@ -76,8 +78,10 @@ class AuthRemoteDataSource {
         }
     }
 
-    // Kiểm tra phiên hiện tại.
-    fun getCurrentSession(): UserSession? {
+    // Kiểm tra phiên làm việc hiện tại. On a cold start the stored session is still loading
+    // (status Initializing, currentSessionOrNull() == null); wait so a signed-in user is not sent to login.
+    suspend fun getCurrentSession(): UserSession? {
+        withTimeoutOrNull(10.seconds) { auth.awaitInitialization() }
         return auth.currentSessionOrNull()
     }
 

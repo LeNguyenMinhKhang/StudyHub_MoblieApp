@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="16dp" android:orientation="vertical">
+        <Button android:id="@+id/btnBack" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/group_back" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/group_create" android:textSize="24sp" android:accessibilityHeading="true" />
+        <EditText android:id="@+id/name" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:hint="@string/group_name" android:inputType="textCapSentences" />
+        <EditText android:id="@+id/description" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="96dp" android:hint="@string/group_description" android:inputType="textMultiLine|textCapSentences" android:gravity="top" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/group_subject" android:labelFor="@id/subject" />
+        <Spinner android:id="@+id/subject" android:layout_width="match_parent" android:layout_height="48dp" android:contentDescription="@string/group_subject" />
+        <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:accessibilityLiveRegion="polite" />
+        <Button android:id="@+id/btnRetry" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/group_reload_subjects" />
+        <Button android:id="@+id/btnSave" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/group_create" />
+    </LinearLayout>
+</ScrollView>

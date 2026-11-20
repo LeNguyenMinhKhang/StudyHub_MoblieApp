@@ -1,0 +1,16 @@
+// Opt-in SDK compatibility spike; does not add LiveKit to the normal app build.
+settingsEvaluated { settings ->
+    settings.dependencyResolutionManagement.repositories.maven {
+        url = uri('https://jitpack.io')
+        content { includeModule('com.github.davidliu', 'audioswitch') }
+    }
+}
+gradle.beforeProject { project ->
+    if (project.path == ':app-user') {
+        project.afterEvaluate {
+            project.dependencies.add('debugImplementation', 'io.livekit:livekit-android:2.30.0')
+            project.android.sourceSets.debug.java.srcDir(project.rootProject.file('supabase/tests/group_calls/android-probe'))
+            project.android.sourceSets.debug.manifest.srcFile(project.rootProject.file('supabase/tests/group_calls/AndroidManifest.xml'))
+        }
+    }
+}

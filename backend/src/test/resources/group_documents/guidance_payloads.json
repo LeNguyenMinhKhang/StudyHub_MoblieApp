@@ -1,0 +1,62 @@
+{
+  "claim": {
+    "guidance": {
+      "guide": {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "avatar_url": null,
+        "display_name": "Test 0"
+      },
+      "is_me": true,
+      "call_id": "4a0cf43d-4a83-4527-8885-a4d0188189e8",
+      "sequence": 1,
+      "generation": 1,
+      "page_index": 0,
+      "version_id": "cd1cc49b-7fe3-4209-8806-c2d35ece9198",
+      "document_id": "436d0d82-40b3-43d9-8c62-1051341b4b57",
+      "lease_expires_at": "2026-11-18T01:45:03.254894+00:00"
+    }
+  },
+  "get_follower": {
+    "guidance": {
+      "guide": {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "avatar_url": null,
+        "display_name": "Test 0"
+      },
+      "is_me": false,
+      "call_id": "4a0cf43d-4a83-4527-8885-a4d0188189e8",
+      "sequence": 1,
+      "generation": 1,
+      "page_index": 0,
+      "version_id": "cd1cc49b-7fe3-4209-8806-c2d35ece9198",
+      "document_id": "436d0d82-40b3-43d9-8c62-1051341b4b57",
+      "lease_expires_at": "2026-11-18T01:45:03.254894+00:00"
+    }
+  },
+  "update": {
+    "guidance": {
+      "guide": {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "avatar_url": null,
+        "display_name": "Test 0"
+      },
+      "is_me": true,
+      "call_id": "4a0cf43d-4a83-4527-8885-a4d0188189e8",
+      "sequence": 2,
+      "generation": 1,
+      "page_index": 1,
+      "version_id": "cd1cc49b-7fe3-4209-8806-c2d35ece9198",
+      "document_id": "436d0d82-40b3-43d9-8c62-1051341b4b57",
+      "lease_expires_at": "2026-11-18T01:45:03.676657+00:00"
+    }
+  },
+  "release": {
+    "released": true
+  },
+  "get_none": {
+    "guidance": null
+  },
+  "release_again": {
+    "released": false
+  }
+}

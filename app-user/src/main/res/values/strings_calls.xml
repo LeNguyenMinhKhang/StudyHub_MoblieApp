@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="call_title">Cuộc gọi nhóm</string>
+    <string name="call_channel">Cuộc gọi nhóm</string>
+    <string name="call_channel_desc">Giữ micro khi cuộc gọi chạy nền</string>
+    <string name="call_notification_title">Đang trong cuộc gọi nhóm</string>
+    <string name="call_notification_text">Chạm để quay lại StudyHub. Camera tạm dừng khi ứng dụng chạy nền.</string>
+
+    <string name="call_joining">Đang vào cuộc gọi…</string>
+    <string name="call_connected">Đã kết nối · %1$d/%2$d người</string>
+    <string name="call_reconnecting">Mất kết nối, đang kết nối lại…</string>
+    <string name="call_ended">Cuộc gọi đã kết thúc.</string>
+    <string name="call_removed">Bạn không còn quyền tham gia cuộc gọi này.</string>
+    <string name="call_connection_lost">Mất kết nối cuộc gọi. Bạn có thể vào lại.</string>
+    <string name="call_other_group">Bạn đang trong cuộc gọi của nhóm khác. Hãy rời cuộc gọi đó trước.</string>
+    <string name="call_control_failed">Không thực hiện được thao tác media. Trạng thái hiện tại được giữ nguyên.</string>
+    <string name="call_camera_paused">Camera tạm dừng khi ứng dụng chạy nền.</string>
+    <string name="call_mic_denied">Chưa có quyền micro: bạn vẫn nghe và xem được. Chạm Micro để cấp quyền.</string>
+    <string name="call_camera_denied">Chưa có quyền camera: bạn vẫn tham gia bằng âm thanh.</string>
+    <string name="call_permission_settings">Quyền đã bị từ chối. Hãy bật trong Cài đặt ứng dụng nếu muốn dùng.</string>
+
+    <string name="call_mic_on">Tắt micro</string>
+    <string name="call_mic_off">Bật micro</string>
+    <string name="call_cam_on">Tắt camera</string>
+    <string name="call_cam_off">Bật camera</string>
+    <string name="call_switch_camera">Đổi camera</string>
+    <string name="call_audio_route">Âm thanh: %1$s</string>
+    <string name="call_audio_route_default">Âm thanh</string>
+    <string name="call_choose_route">Chọn thiết bị âm thanh</string>
+    <string name="call_route_speaker">Loa ngoài</string>
+    <string name="call_route_earpiece">Loa thoại</string>
+    <string name="call_route_wired">Tai nghe có dây</string>
+    <string name="call_route_bluetooth">Bluetooth: %1$s</string>
+    <string name="call_leave">Rời cuộc gọi</string>
+    <string name="call_end_all">Kết thúc cho tất cả</string>
+    <string name="call_confirm_end">Kết thúc cuộc gọi cho mọi người? Tất cả sẽ bị ngắt kết nối.</string>
+    <string name="call_ending">Đang kết thúc cuộc gọi…</string>
+    <string name="call_documents">Tài liệu nhóm</string>
+    <string name="call_rejoin">Vào lại</string>
+    <string name="call_you">Bạn</string>
+    <string name="call_member">Thành viên</string>
+    <string name="call_tile_desc">%1$s, micro %2$s, camera %3$s</string>
+    <string name="call_on">bật</string>
+    <string name="call_off">tắt</string>
+
+    <string name="call_banner_none">Chưa có cuộc gọi nào.</string>
+    <string name="call_banner_active">Cuộc gọi đang diễn ra · %1$d/%2$d người · bắt đầu bởi %3$s</string>
+    <string name="call_banner_full">Cuộc gọi đã đủ %1$d người. Bạn vẫn có thể dùng tài liệu nhóm.</string>
+    <string name="call_banner_ending">Cuộc gọi đang được kết thúc…</string>
+    <string name="call_banner_mine">Bạn đang trong cuộc gọi của nhóm này.</string>
+    <string name="call_start_audio">Gọi thoại</string>
+    <string name="call_start_video">Gọi video</string>
+    <string name="call_join_audio">Tham gia (thoại)</string>
+    <string name="call_join_video">Tham gia (video)</string>
+    <string name="call_return">Quay lại cuộc gọi</string>
+</resources>

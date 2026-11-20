@@ -1,0 +1,12 @@
+{
+  "name": "studyhub-livekit-cloud-probe",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 --experimental-strip-types cloud_revocation.test.mjs worker_cloud.test.mjs"
+  },
+  "dependencies": {
+    "@livekit/rtc-node": "1.2.1",
+    "livekit-server-sdk": "2.19.3"
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "detail": {
+    "id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d",
+    "name": "Nhóm 📚",
+    "role": "owner",
+    "subject": {
+      "id": "00000000-0000-0000-0000-000000000065",
+      "name": "Test subject",
+      "is_active": true
+    },
+    "created_at": "2026-11-13T06:26:54.025195+00:00",
+    "updated_at": "2026-11-13T06:26:54.025195+00:00",
+    "description": null,
+    "member_count": 1
+  },
+  "groups": {
+    "items": [
+      {
+        "id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d",
+        "name": "Nhóm 📚",
+        "role": "owner",
+        "subject": {
+          "id": "00000000-0000-0000-0000-000000000065",
+          "name": "Test subject",
+          "is_active": true
+        },
+        "created_at": "2026-11-13T06:26:54.025195+00:00",
+        "updated_at": "2026-11-13T06:26:54.025195+00:00",
+        "description": null,
+        "member_count": 1
+      }
+    ],
+    "next_cursor": null
+  },
+  "members": {
+    "items": [
+      {
+        "role": "owner",
+        "user_id": "00000000-0000-0000-0000-000000000001",
+        "joined_at": "2026-11-13T06:26:54.025195+00:00",
+        "avatar_url": null,
+        "display_name": "Test 0"
+      }
+    ],
+    "next_cursor": null
+  },
+  "incoming": {
+    "items": [
+      {
+        "id": "ee2b65d9-f50f-4b3c-be5d-cd745436643f",
+        "status": "pending",
+        "inviter": {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "avatar_url": null,
+          "display_name": "Test 0"
+        },
+        "subject": {
+          "id": "00000000-0000-0000-0000-000000000065",
+          "name": "Test subject",
+          "is_active": true
+        },
+        "group_id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d",
+        "created_at": "2026-11-13T06:26:54.321723+00:00",
+        "group_name": "Nhóm 📚",
+        "description": null
+      }
+    ],
+    "next_cursor": null
+  },
+  "outgoing": {
+    "items": [
+      {
+        "id": "ee2b65d9-f50f-4b3c-be5d-cd745436643f",
+        "status": "pending",
+        "invitee": {
+          "id": "00000000-0000-0000-0000-000000000003",
+          "avatar_url": null,
+          "display_name": "Test 2"
+        },
+        "inviter": {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "avatar_url": null,
+          "display_name": "Test 0"
+        },
+        "subject": {
+          "id": "00000000-0000-0000-0000-000000000065",
+          "name": "Test subject",
+          "is_active": true
+        },
+        "group_id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d",
+        "created_at": "2026-11-13T06:26:54.321723+00:00",
+        "group_name": "Nhóm 📚",
+        "description": null
+      }
+    ],
+    "next_cursor": null
+  },
+  "invitation_result": {
+    "id": "ee2b65d9-f50f-4b3c-be5d-cd745436643f",
+    "status": "pending",
+    "group_id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d"
+  },
+  "mutation_result": {
+    "status": "archived",
+    "group_id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d"
+  }
+}

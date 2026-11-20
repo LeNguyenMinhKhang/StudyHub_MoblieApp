@@ -112,6 +112,10 @@ class Home : Fragment() {
 
     fun popDetail() { childFragmentManager.popBackStack() }
 
+    fun closeGroupDetails() {
+        childFragmentManager.popBackStack(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
+    }
+
     fun onProfileUpdated(profile: Profile) { auth.updateProfileSnapshot(profile) }
 
     private fun requestRoot(fragment: Fragment) {

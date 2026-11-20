@@ -567,6 +567,9 @@ class PostAdapter(
         ) {
             val popup = PopupMenu(anchor.context, anchor)
 
+            // Share
+            binding.btnPostShare.setOnClickListener {
+                fragment.sharePost(item, authorName, currentUserId)
             popup.menu.add(0, 1, 0, "👍 Thích")
             popup.menu.add(0, 2, 1, "❤️ Yêu thích")
             popup.menu.add(0, 3, 2, "😂 Haha")

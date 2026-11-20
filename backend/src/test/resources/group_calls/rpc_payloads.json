@@ -1,0 +1,72 @@
+{
+  "get_active": {
+    "call": {
+      "id": "19418fa1-f97b-4092-9327-908c45eee07b",
+      "status": "active",
+      "can_end": false,
+      "capacity": 6,
+      "ended_at": null,
+      "group_id": "6ffde4be-b30a-4a0e-9547-534e430b72da",
+      "my_status": null,
+      "created_at": "2026-11-18T01:44:25.145072+00:00",
+      "started_by": {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "avatar_url": null,
+        "display_name": "Test 0"
+      },
+      "activated_at": "2026-11-18T01:44:25.397709+00:00",
+      "initial_mode": "audio",
+      "cleanup_pending": false,
+      "participant_count": 1
+    }
+  },
+  "confirm": {
+    "call": {
+      "id": "19418fa1-f97b-4092-9327-908c45eee07b",
+      "status": "active",
+      "can_end": true,
+      "capacity": 6,
+      "ended_at": null,
+      "group_id": "6ffde4be-b30a-4a0e-9547-534e430b72da",
+      "my_status": "reserved",
+      "created_at": "2026-11-18T01:44:25.145072+00:00",
+      "started_by": {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "avatar_url": null,
+        "display_name": "Test 0"
+      },
+      "activated_at": "2026-11-18T01:44:25.397709+00:00",
+      "initial_mode": "audio",
+      "cleanup_pending": false,
+      "participant_count": 1
+    }
+  },
+  "leave": {
+    "status": "left",
+    "call_id": "19418fa1-f97b-4092-9327-908c45eee07b"
+  },
+  "end": {
+    "call": {
+      "id": "19418fa1-f97b-4092-9327-908c45eee07b",
+      "status": "ending",
+      "can_end": false,
+      "capacity": 6,
+      "ended_at": null,
+      "group_id": "6ffde4be-b30a-4a0e-9547-534e430b72da",
+      "my_status": null,
+      "created_at": "2026-11-18T01:44:25.145072+00:00",
+      "started_by": {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "avatar_url": null,
+        "display_name": "Test 0"
+      },
+      "activated_at": "2026-11-18T01:44:25.397709+00:00",
+      "initial_mode": "audio",
+      "cleanup_pending": true,
+      "participant_count": 0
+    }
+  },
+  "get_none": {
+    "call": null
+  }
+}
