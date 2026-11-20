@@ -1,6 +1,7 @@
 package com.doan.studyhub.common
 
 import android.util.Log
+import io.github.jan.supabase.postgrest.exception.PostgrestRestException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 
@@ -10,6 +11,9 @@ enum class Operation {
     PROFILE_READ, PROFILE_LOOKUP, PROFILE_UPDATE,
     AVATAR_STAGE, AVATAR_COMMIT, AVATAR_REMOVE,
     FRIENDSHIP_READ, FRIENDSHIP_LIST, FRIENDSHIP_MUTATE,
+    GROUP_READ, GROUP_MUTATE,
+    DOCUMENT_READ, DOCUMENT_UPLOAD, DOCUMENT_MUTATE,
+    CALL_READ, CALL_MUTATE,
     NOTIFICATION_LIST, NOTIFICATION_MARK_READ, NOTIFICATION_OPEN, NOTIFICATION_PREFERENCES,
     AVATAR_UPLOAD, AVATAR_PUBLISH,
     CHAT_LIST, CHAT_CREATE, CHAT_MESSAGES, CHAT_SEND, CHAT_UPLOAD, CHAT_MARK_READ
@@ -24,8 +28,9 @@ object AndroidErrorLogger : ErrorLogger {
         log(operation, error, traceId, elapsedMs, null)
     }
 
-    fun log(operation: Operation, error: ErrorType, traceId: String, elapsedMs: Long, throwable: Throwable?) {
-        val entry = "operation=${operation.name} code=${error.code} traceId=$traceId durationMs=$elapsedMs message=${error.logMessage}"
+    fun log(operation: Operation, error: ErrorType, traceId: String, elapsedMs: Long, throwable: Throwable?, cause: String? = null) {
+        val entry = "operation=${operation.name} code=${error.code} traceId=$traceId durationMs=$elapsedMs message=${error.logMessage}" +
+            (cause?.let { " cause=$it" } ?: "")
         when (error.logLevel) {
             LogLevel.INFO -> Log.i("StudyHubOperation", entry)
             LogLevel.WARN -> Log.w("StudyHubOperation", entry, throwable)
@@ -33,6 +38,12 @@ object AndroidErrorLogger : ErrorLogger {
         }
     }
 }
+
+private val PRIVATE_OPERATIONS = setOf(
+    Operation.GROUP_READ, Operation.GROUP_MUTATE,
+    Operation.DOCUMENT_READ, Operation.DOCUMENT_UPLOAD, Operation.DOCUMENT_MUTATE,
+    Operation.CALL_READ, Operation.CALL_MUTATE
+)
 
 class SafeApiCall(
     private val mapper: ExceptionMapper = ExceptionMapper(),
@@ -50,12 +61,23 @@ class SafeApiCall(
         } catch (error: Exception) {
             val mapped = mapper.map(error, operation)
             if (logger is AndroidErrorLogger) {
-                logger.log(operation, mapped.type, id, (clockMs() - started).coerceAtLeast(0), error)
+                // Group/document failures may carry private SQL detail; log only the provider code
+                // (e.g. PGRST202 for an undeployed RPC) or the exception class, never its message.
+                val isPrivate = operation in PRIVATE_OPERATIONS
+                val cause = if (isPrivate) privateCause(error) else null
+                logger.log(operation, mapped.type, id, (clockMs() - started).coerceAtLeast(0), if (isPrivate) null else error, cause)
             } else {
                 logger.log(operation, mapped.type, id, (clockMs() - started).coerceAtLeast(0))
             }
             ApiResponse.Failure(mapped, id)
         }
+    }
+
+    private fun privateCause(error: Exception): String =
+        (error as? PostgrestRestException)?.code?.takeIf { it.matches(SAFE_CODE) } ?: error.javaClass.simpleName
+
+    private companion object {
+        val SAFE_CODE = Regex("[A-Za-z0-9]{1,12}")
     }
 
     fun failure(operation: Operation, type: ErrorType, fieldErrors: Map<String, String> = emptyMap()): ApiResponse.Failure {

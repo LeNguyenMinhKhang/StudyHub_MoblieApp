@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="16dp" android:background="@color/background_light">
+    <Button android:id="@+id/btnBack" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/group_back" />
+    <TextView android:id="@+id/tvTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/doc_title" android:textSize="24sp" android:textStyle="bold" android:accessibilityHeading="true" />
+    <Button android:id="@+id/btnUpload" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/doc_upload" />
+    <TextView android:id="@+id/tvHint" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/doc_upload_hint" />
+    <TextView android:id="@+id/tvStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:accessibilityLiveRegion="polite" />
+    <Button android:id="@+id/btnRetry" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/group_retry" android:visibility="gone" />
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout android:id="@+id/refresh" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <androidx.recyclerview.widget.RecyclerView android:id="@+id/rows" android:layout_width="match_parent" android:layout_height="match_parent" />
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+    <Button android:id="@+id/btnMore" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/group_more" android:visibility="gone" />
+</LinearLayout>

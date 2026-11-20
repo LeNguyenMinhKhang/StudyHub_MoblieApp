@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/background_light">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingHorizontal="8dp">
+        <Button android:id="@+id/btnBack" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/group_back" />
+        <TextView android:id="@+id/tvTitle" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="18sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" android:accessibilityHeading="true" />
+        <TextView android:id="@+id/tvSave" android:layout_width="wrap_content" android:layout_height="wrap_content" android:accessibilityLiveRegion="polite" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/newerBanner" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingHorizontal="8dp" android:visibility="gone">
+        <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/doc_newer" />
+        <Button android:id="@+id/btnNewer" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_open_newer" />
+    </LinearLayout>
+    <!-- Compact call controls + optional follow-the-guide; visible only while this group's call session is attached. -->
+    <LinearLayout android:id="@+id/callBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="#EEF2FF" android:paddingHorizontal="8dp" android:visibility="gone">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:id="@+id/tvCallState" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:maxLines="1" android:ellipsize="end" android:accessibilityLiveRegion="polite" />
+            <Button android:id="@+id/btnCallMic" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="0dp" />
+            <Button android:id="@+id/btnCallCamera" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="0dp" />
+            <Button android:id="@+id/btnCallReturn" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="0dp" android:text="@string/call_return" />
+            <Button android:id="@+id/btnCallLeave" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="0dp" android:text="@string/call_leave" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/guideRow" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <Button android:id="@+id/btnGuide" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="0dp" />
+            <CheckBox android:id="@+id/chkFollow" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_guide_follow" />
+            <TextView android:id="@+id/tvGuide" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:maxLines="2" android:ellipsize="end" android:accessibilityLiveRegion="polite" />
+            <Button android:id="@+id/btnGuideOpen" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="0dp" android:text="@string/doc_guide_open" android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+    <TextView android:id="@+id/tvStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="8dp" android:accessibilityLiveRegion="polite" />
+    <Button android:id="@+id/btnRetry" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="@string/group_retry" android:visibility="gone" />
+    <com.doan.studyhub.user.ui.group.document.PdfPageView android:id="@+id/page" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:background="#E5E7EB" android:contentDescription="@string/doc_viewer_desc" />
+    <LinearLayout android:id="@+id/exportRow" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingHorizontal="8dp" android:visibility="gone">
+        <ProgressBar android:id="@+id/exportProgress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" />
+        <Button android:id="@+id/btnCancelExport" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_export_cancel" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+        <Button android:id="@+id/btnPrev" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="‹" android:contentDescription="@string/doc_prev" />
+        <TextView android:id="@+id/tvPage" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center" />
+        <Button android:id="@+id/btnNext" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:contentDescription="@string/doc_next" />
+        <Button android:id="@+id/btnRotate" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_rotate" />
+        <Button android:id="@+id/btnFit" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_fit" />
+    </LinearLayout>
+    <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content">
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
+            <Button android:id="@+id/toolView" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_tool_view" />
+            <Button android:id="@+id/toolInk" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_tool_ink" />
+            <Button android:id="@+id/toolHighlight" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_tool_highlight" />
+            <Button android:id="@+id/toolNote" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_tool_note" />
+            <Button android:id="@+id/toolSelect" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_tool_select" />
+            <Button android:id="@+id/btnColor" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_color" />
+            <Button android:id="@+id/btnDelete" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_delete" />
+            <Button android:id="@+id/btnUndo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_undo" />
+            <Button android:id="@+id/btnConflicts" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_resolve" android:visibility="gone" />
+            <Button android:id="@+id/btnExport" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/doc_export" />
+        </LinearLayout>
+    </HorizontalScrollView>
+</LinearLayout>

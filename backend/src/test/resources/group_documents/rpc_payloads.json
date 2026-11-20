@@ -1,0 +1,377 @@
+{
+  "reserve": {
+    "id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+    "bucket": "group-documents",
+    "status": "pending",
+    "group_id": "ea5cf7e4-c695-4a19-9f4b-442af98daff1",
+    "expires_at": "2026-11-16T23:27:36.396487+00:00",
+    "object_key": "ea5cf7e4-c695-4a19-9f4b-442af98daff1/e829bf5e-4f71-49a9-a936-ebe320c7bf8a.pdf",
+    "version_id": null,
+    "document_id": null,
+    "failure_reason": null
+  },
+  "ready": {
+    "id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+    "bucket": "group-documents",
+    "status": "ready",
+    "group_id": "ea5cf7e4-c695-4a19-9f4b-442af98daff1",
+    "expires_at": "2026-11-16T23:27:36.396487+00:00",
+    "object_key": "ea5cf7e4-c695-4a19-9f4b-442af98daff1/e829bf5e-4f71-49a9-a936-ebe320c7bf8a.pdf",
+    "version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+    "document_id": "e2d1cb5f-1955-4a61-88f7-b7beb393377b",
+    "failure_reason": null
+  },
+  "documents": {
+    "items": [
+      {
+        "id": "e2d1cb5f-1955-4a61-88f7-b7beb393377b",
+        "title": "Giáo trình 📘",
+        "group_id": "ea5cf7e4-c695-4a19-9f4b-442af98daff1",
+        "can_manage": true,
+        "created_at": "2026-11-16T22:57:36.752984+00:00",
+        "updated_at": "2026-11-16T22:57:36.752984+00:00",
+        "uploaded_by": {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "avatar_url": null,
+          "display_name": "Test 1"
+        },
+        "current_version": {
+          "id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+          "created_at": "2026-11-16T22:57:36.752984+00:00",
+          "is_current": true,
+          "page_count": 2,
+          "size_bytes": 1000,
+          "document_id": "e2d1cb5f-1955-4a61-88f7-b7beb393377b",
+          "uploaded_by": {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "avatar_url": null,
+            "display_name": "Test 1"
+          },
+          "version_number": 1
+        }
+      }
+    ],
+    "next_cursor": null
+  },
+  "document": {
+    "id": "e2d1cb5f-1955-4a61-88f7-b7beb393377b",
+    "title": "Giáo trình 📘",
+    "group_id": "ea5cf7e4-c695-4a19-9f4b-442af98daff1",
+    "can_manage": true,
+    "created_at": "2026-11-16T22:57:36.752984+00:00",
+    "updated_at": "2026-11-16T22:57:36.752984+00:00",
+    "uploaded_by": {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "avatar_url": null,
+      "display_name": "Test 1"
+    },
+    "current_version": {
+      "id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+      "created_at": "2026-11-16T22:57:36.752984+00:00",
+      "is_current": true,
+      "page_count": 2,
+      "size_bytes": 1000,
+      "document_id": "e2d1cb5f-1955-4a61-88f7-b7beb393377b",
+      "uploaded_by": {
+        "id": "00000000-0000-0000-0000-000000000002",
+        "avatar_url": null,
+        "display_name": "Test 1"
+      },
+      "version_number": 1
+    }
+  },
+  "versions": {
+    "items": [
+      {
+        "id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+        "created_at": "2026-11-16T22:57:36.752984+00:00",
+        "is_current": true,
+        "page_count": 2,
+        "size_bytes": 1000,
+        "document_id": "e2d1cb5f-1955-4a61-88f7-b7beb393377b",
+        "uploaded_by": {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "avatar_url": null,
+          "display_name": "Test 1"
+        },
+        "version_number": 1
+      }
+    ],
+    "next_cursor": null
+  },
+  "version": {
+    "id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+    "pages": [
+      {
+        "h": 792,
+        "w": 612
+      },
+      {
+        "h": 595,
+        "w": 842
+      }
+    ],
+    "title": "Giáo trình 📘",
+    "bucket": "group-documents",
+    "group_id": "ea5cf7e4-c695-4a19-9f4b-442af98daff1",
+    "revision": 4,
+    "can_manage": true,
+    "created_at": "2026-11-16T22:57:36.752984+00:00",
+    "is_current": true,
+    "object_key": "ea5cf7e4-c695-4a19-9f4b-442af98daff1/e829bf5e-4f71-49a9-a936-ebe320c7bf8a.pdf",
+    "page_count": 2,
+    "size_bytes": 1000,
+    "document_id": "e2d1cb5f-1955-4a61-88f7-b7beb393377b",
+    "uploaded_by": {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "avatar_url": null,
+      "display_name": "Test 1"
+    },
+    "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "version_number": 1,
+    "active_annotations": 2,
+    "current_version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a"
+  },
+  "created": {
+    "op_id": "3f3e79ab-b1cc-4ef5-9e29-676942294b89",
+    "action": "create",
+    "revision": 1,
+    "annotation": {
+      "id": "33690031-f7ac-4633-8b91-9297bb2667f2",
+      "data": {
+        "text": "Ghi chú 😀",
+        "color": "#FDE047",
+        "anchor": [
+          0.25,
+          0.5
+        ]
+      },
+      "kind": "note",
+      "author": {
+        "id": "00000000-0000-0000-0000-000000000002",
+        "display_name": "Test 1"
+      },
+      "deleted": false,
+      "revision": 1,
+      "created_at": "2026-11-16T22:57:36.93865+00:00",
+      "page_index": 0,
+      "updated_at": "2026-11-16T22:57:36.93865+00:00",
+      "version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+      "row_version": 1
+    }
+  },
+  "highlight": {
+    "op_id": "e5b9ca9e-1410-4c98-832c-4793c6c88467",
+    "action": "create",
+    "revision": 3,
+    "annotation": {
+      "id": "bb2ef1ba-0b84-4238-ac54-753ce075f1ca",
+      "data": {
+        "rect": [
+          0.1,
+          0.2,
+          0.4,
+          0.3
+        ],
+        "color": "#86EFAC"
+      },
+      "kind": "highlight",
+      "author": {
+        "id": "00000000-0000-0000-0000-000000000002",
+        "display_name": "Test 1"
+      },
+      "deleted": false,
+      "revision": 3,
+      "created_at": "2026-11-16T22:57:37.394077+00:00",
+      "page_index": 0,
+      "updated_at": "2026-11-16T22:57:37.394077+00:00",
+      "version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+      "row_version": 1
+    }
+  },
+  "deleted": {
+    "op_id": "4d64dc32-f616-435b-aa5b-0adaed64b928",
+    "action": "delete",
+    "revision": 4,
+    "annotation": {
+      "id": "873e9a0b-75f1-4f32-9da7-0022b7c4e68d",
+      "data": null,
+      "kind": "ink",
+      "author": {
+        "id": "00000000-0000-0000-0000-000000000002",
+        "display_name": "Test 1"
+      },
+      "deleted": true,
+      "revision": 4,
+      "created_at": "2026-11-16T22:57:37.158983+00:00",
+      "page_index": 0,
+      "updated_at": "2026-11-16T22:57:37.599798+00:00",
+      "version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+      "row_version": 2
+    }
+  },
+  "snapshot": {
+    "id": "7d4d9bbd-adc9-47b0-9575-108cbb57f5c6",
+    "purpose": "export",
+    "revision": 4,
+    "expires_at": "2026-11-16T23:12:37.803739+00:00",
+    "version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+    "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "snapshot_page": {
+    "items": [
+      {
+        "id": "33690031-f7ac-4633-8b91-9297bb2667f2",
+        "data": {
+          "text": "Ghi chú 😀",
+          "color": "#FDE047",
+          "anchor": [
+            0.25,
+            0.5
+          ]
+        },
+        "kind": "note",
+        "author": {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "display_name": "Test 1"
+        },
+        "deleted": false,
+        "revision": 1,
+        "created_at": "2026-11-16T22:57:36.93865+00:00",
+        "page_index": 0,
+        "updated_at": "2026-11-16T22:57:36.93865+00:00",
+        "version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+        "row_version": 1
+      }
+    ],
+    "revision": 4,
+    "next_after": "33690031-f7ac-4633-8b91-9297bb2667f2",
+    "version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+    "snapshot_id": "7d4d9bbd-adc9-47b0-9575-108cbb57f5c6"
+  },
+  "changes": {
+    "items": [
+      {
+        "id": "33690031-f7ac-4633-8b91-9297bb2667f2",
+        "data": {
+          "text": "Ghi chú 😀",
+          "color": "#FDE047",
+          "anchor": [
+            0.25,
+            0.5
+          ]
+        },
+        "kind": "note",
+        "author": {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "display_name": "Test 1"
+        },
+        "deleted": false,
+        "revision": 1,
+        "created_at": "2026-11-16T22:57:36.93865+00:00",
+        "page_index": 0,
+        "updated_at": "2026-11-16T22:57:36.93865+00:00",
+        "version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+        "row_version": 1
+      },
+      {
+        "id": "bb2ef1ba-0b84-4238-ac54-753ce075f1ca",
+        "data": {
+          "rect": [
+            0.1,
+            0.2,
+            0.4,
+            0.3
+          ],
+          "color": "#86EFAC"
+        },
+        "kind": "highlight",
+        "author": {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "display_name": "Test 1"
+        },
+        "deleted": false,
+        "revision": 3,
+        "created_at": "2026-11-16T22:57:37.394077+00:00",
+        "page_index": 0,
+        "updated_at": "2026-11-16T22:57:37.394077+00:00",
+        "version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+        "row_version": 1
+      }
+    ],
+    "revision": 4,
+    "next_since": 3,
+    "version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+    "reset_required": false
+  },
+  "revision": {
+    "revision": 4,
+    "version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a",
+    "current_version_id": "e829bf5e-4f71-49a9-a936-ebe320c7bf8a"
+  },
+  "channel": {
+    "topic": "group-docs:436b60c0-d4a8-4b5a-ab8e-319d49e037b3",
+    "group_id": "ea5cf7e4-c695-4a19-9f4b-442af98daff1"
+  },
+  "archive": {
+    "status": "archived",
+    "document_id": "e2d1cb5f-1955-4a61-88f7-b7beb393377b"
+  },
+  "jsonb_sizes": [
+    {
+      "data": {
+        "anchor": [
+          0.25,
+          0.5
+        ],
+        "text": "Ghi chú 😀",
+        "color": "#FDE047"
+      },
+      "bytes": 68
+    },
+    {
+      "data": {
+        "points": [
+          [
+            0.1234,
+            0.5
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            0.0001,
+            0.9999
+          ]
+        ],
+        "color": "#DC2626",
+        "width": 0.004
+      },
+      "bytes": 89
+    },
+    {
+      "data": {
+        "rect": [
+          0.1,
+          0.2,
+          0.4,
+          0.3
+        ],
+        "color": "#86EFAC"
+      },
+      "bytes": 50
+    },
+    {
+      "data": {
+        "anchor": [
+          0.5,
+          0.5
+        ],
+        "text": "Dòng 1\nDòng \"2\" \\ tab\t 👍🏽",
+        "color": "#93C5FD"
+      },
+      "bytes": 92
+    }
+  ]
+}

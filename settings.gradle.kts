@@ -19,6 +19,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // LiveKit Android pins a commit of audioswitch that is only published on JitPack.
+        maven("https://jitpack.io") {
+            content { includeModule("com.github.davidliu", "audioswitch") }
+        }
     }
 }
 
