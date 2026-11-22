@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F5F6FA"
+    android:padding="16dp">
+
+    <!-- Tiêu đề -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Quản lý bài viết"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="#1F2937"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Thanh tìm kiếm -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilSearchPost"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Tìm bài viết, người đăng..."
+        app:boxBackgroundMode="outline"
+        app:startIconDrawable="@android:drawable/ic_menu_search">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edtSearchPost"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:imeOptions="actionSearch" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Thống kê -->
+    <TextView
+        android:id="@+id/tvPostSummary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Danh sách bài viết"
+        android:textColor="#64748B"
+        android:textSize="14sp"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Loading -->
+    <ProgressBar
+        android:id="@+id/progressPosts"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone" />
+
+    <!-- Trạng thái rỗng -->
+    <TextView
+        android:id="@+id/tvEmptyPosts"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Không có bài viết nào"
+        android:textSize="15sp"
+        android:textColor="#64748B"
+        android:gravity="center"
+        android:padding="24dp"
+        android:visibility="gone" />
+
+    <!-- Danh sách bài viết -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvAdminPosts"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="8dp" />
+
+</LinearLayout>
