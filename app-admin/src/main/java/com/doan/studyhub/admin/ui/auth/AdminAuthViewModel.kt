@@ -2,9 +2,8 @@ package com.doan.studyhub.admin.ui.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.doan.studyhub.common.ApiResponse
+import com.doan.studyhub.common.Resource
 import com.doan.studyhub.core.data.model.Profile
-import com.doan.studyhub.core.data.model.RegistrationOutcome
 import com.doan.studyhub.core.data.repository.AuthRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -29,19 +28,27 @@ class AdminAuthViewModel(
     private val _uiState = MutableStateFlow(AdminAuthUiState())
     val uiState: StateFlow<AdminAuthUiState> = _uiState.asStateFlow()
 
+    // Đăng nhập Admin
     fun signIn(email: String, pass: String) {
         val trimmedEmail = email.trim()
+
         if (trimmedEmail.isBlank() || pass.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "Vui lòng nhập đầy đủ Email và Mật khẩu") }
+            _uiState.update {
+                it.copy(errorMessage = "Vui lòng nhập đầy đủ Email và Mật khẩu")
+            }
             return
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            when (val res = authRepository.signIn(trimmedEmail, pass)) {
-                is ApiResponse.Success -> {
-                    val profile = res.data
-                    if (profile.role == "admin") {
+            _uiState.update {
+                it.copy(isLoading = true, errorMessage = null)
+            }
+
+            when (val result = authRepository.signIn(trimmedEmail, pass)) {
+                is Resource.Success -> {
+                    val profile = result.data
+
+                    if (profile.role == "admin" && !profile.isBanned) {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -51,8 +58,8 @@ class AdminAuthViewModel(
                             )
                         }
                     } else {
-                        // Phân quyền chặt chẽ: Không phải admin thì từ chối ngay và đăng xuất
                         authRepository.signOut()
+
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -63,25 +70,43 @@ class AdminAuthViewModel(
                         }
                     }
                 }
-                is ApiResponse.Failure -> {
+
+                is Resource.Error -> {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = res.error.message
+                            isAuthenticated = false,
+                            profile = null,
+                            errorMessage = result.message
                         )
+                    }
+                }
+
+                Resource.Loading -> {
+                    _uiState.update {
+                        it.copy(isLoading = true)
                     }
                 }
             }
         }
     }
 
-    fun signUp(email: String, pass: String, username: String, displayName: String) {
+    // Đăng ký tài khoản
+    fun signUp(
+        email: String,
+        pass: String,
+        username: String,
+        displayName: String
+    ) {
         val trimmedEmail = email.trim()
         val trimmedUsername = username.trim()
         val trimmedDisplayName = displayName.trim()
 
-        if (trimmedEmail.isBlank() || pass.isBlank() ||
-            trimmedUsername.isBlank() || trimmedDisplayName.isBlank()
+        if (
+            trimmedEmail.isBlank() ||
+            pass.isBlank() ||
+            trimmedUsername.isBlank() ||
+            trimmedDisplayName.isBlank()
         ) {
             _uiState.update {
                 it.copy(errorMessage = "Vui lòng nhập đầy đủ tất cả thông tin")
@@ -102,79 +127,89 @@ class AdminAuthViewModel(
             }
 
             when (
-                val res = authRepository.signUp(
+                val result = authRepository.signUp(
                     trimmedEmail,
-                    pass,
-                    trimmedUsername,
-                    trimmedDisplayName
+                pass,
+                trimmedUsername,
+                trimmedDisplayName
                 )
             ) {
-                is ApiResponse.Success -> {
-                    when (res.data) {
-                        is RegistrationOutcome.Authenticated -> {
-                            // Tài khoản mới chỉ có quyền user.
-                            // Không gọi RPC cấp quyền Admin.
-                            authRepository.signOut()
+                is Resource.Success -> {
+                    // Tài khoản đăng ký luôn có role user.
+                    // Không cấp quyền Admin cho tài khoản mới.
+                    authRepository.signOut()
 
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    isAuthenticated = false,
-                                    profile = null,
-                                    errorMessage = "Đăng ký thành công! Tài khoản đã được tạo. Vui lòng đăng nhập bằng tài khoản Admin hiện có."
-                                )
-                            }
-                        }
-
-                        RegistrationOutcome.ConfirmationRequired -> {
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    isAuthenticated = false,
-                                    profile = null,
-                                    errorMessage = "Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản."
-                                )
-                            }
-                        }
-                    }
-                }
-
-                is ApiResponse.Failure -> {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             isAuthenticated = false,
                             profile = null,
-                            errorMessage = res.error.message
+                            errorMessage = "Đăng ký thành công! Tài khoản đã được tạo. Vui lòng đăng nhập bằng tài khoản Admin hiện có."
                         )
+                    }
+                }
+
+                is Resource.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isAuthenticated = false,
+                            profile = null,
+                            errorMessage = result.message
+                        )
+                    }
+                }
+
+                Resource.Loading -> {
+                    _uiState.update {
+                        it.copy(isLoading = true)
                     }
                 }
             }
         }
     }
 
+    // Đăng xuất
     fun signOut(onComplete: () -> Unit = {}) {
-        viewModelScope.launch(NonCancellable) {
-            _uiState.update { it.copy(isLoading = true) }
-            try {
-                authRepository.signOut()
-            } catch (_: Exception) {
-            }
+        viewModelScope.launch {
             _uiState.update {
-                AdminAuthUiState(
-                    isLoading = false,
-                    isAuthenticated = false,
-                    profile = null,
-                    errorMessage = null
-                )
+                it.copy(isLoading = true, errorMessage = null)
             }
-            withContext(Dispatchers.Main) {
-                onComplete()
+
+            when (val result = authRepository.signOut()) {
+                is Resource.Success -> {
+                    _uiState.value = AdminAuthUiState(
+                        isLoading = false,
+                        isAuthenticated = false,
+                        profile = null,
+                        errorMessage = null
+                    )
+
+                    onComplete()
+                }
+
+                is Resource.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Đăng xuất thất bại: ${result.message}"
+                        )
+                    }
+                }
+
+                is Resource.Loading -> {
+                    _uiState.update {
+                        it.copy(isLoading = true)
+                    }
+                }
             }
         }
     }
 
+    // Xóa thông báo lỗi
     fun clearError() {
-        _uiState.update { it.copy(errorMessage = null) }
+        _uiState.update {
+            it.copy(errorMessage = null)
+        }
     }
 }

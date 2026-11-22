@@ -8,7 +8,6 @@
     android:gravity="center_vertical"
     android:padding="14dp">
 
-    <!-- Avatar -->
     <ImageView
         android:id="@+id/ivUserAvatar"
         android:layout_width="52dp"
@@ -17,7 +16,6 @@
         android:scaleType="centerCrop"
         android:src="@drawable/ic_group" />
 
-    <!-- User information -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -55,7 +53,6 @@
             android:textSize="12sp"
             android:maxLines="1" />
 
-        <!-- Role and status -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
