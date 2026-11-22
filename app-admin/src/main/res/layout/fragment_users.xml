@@ -7,59 +7,93 @@
     android:orientation="vertical"
     android:padding="16dp">
 
+    <!-- Header -->
     <TextView
+        android:id="@+id/tvUsersTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Quản lý Người dùng"
+        android:text="Quản lý người dùng"
         android:textColor="@color/text_primary"
-        android:textSize="20sp"
+        android:textSize="22sp"
         android:textStyle="bold" />
 
     <TextView
+        android:id="@+id/tvUsersSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="Tra cứu, quản lý tài khoản và phân quyền"
+        android:textColor="@color/text_muted"
+        android:textSize="14sp" />
+
+    <!-- Search -->
+    <EditText
+        android:id="@+id/etUserSearch"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginTop="18dp"
+        android:background="@drawable/bg_input_field"
+        android:hint="Tìm theo tên, email hoặc username..."
+        android:paddingHorizontal="14dp"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_muted"
+        android:textSize="14sp"
+        android:singleLine="true"
+        android:inputType="text"
+        android:imeOptions="actionSearch" />
+
+    <!-- User count -->
+    <TextView
+        android:id="@+id/tvUserCount"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="Tra cứu thông tin, khóa tài khoản hoặc phân quyền người dùng"
-        android:textColor="@color/text_muted"
-        android:textSize="13sp" />
-
-    <!-- Search bar placeholder -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
         android:layout_marginTop="16dp"
-        android:background="@drawable/bg_input_field"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="14dp">
+        android:layout_marginBottom="10dp"
+        android:text="Danh sách tài khoản"
+        android:textColor="@color/text_primary"
+        android:textSize="15sp"
+        android:textStyle="bold" />
 
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:src="@drawable/ic_group"
-            app:tint="@color/text_muted" />
+    <!-- Loading -->
+    <ProgressBar
+        android:id="@+id/pbUsersLoading"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginVertical="12dp"
+        android:visibility="gone" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:text="Tìm kiếm người dùng theo tên, email hoặc username..."
-            android:textColor="@color/text_muted"
-            android:textSize="14sp" />
-    </LinearLayout>
+    <!-- Error -->
+    <TextView
+        android:id="@+id/tvUsersError"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="12dp"
+        android:textColor="@color/text_muted"
+        android:textSize="14sp"
+        android:visibility="gone" />
 
-    <FrameLayout
+    <!-- Empty state -->
+    <TextView
+        android:id="@+id/tvUsersEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="24dp"
+        android:text="Không tìm thấy người dùng"
+        android:textColor="@color/text_muted"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+    <!-- User list -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvUsers"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="Tab Quản lý Người dùng\n(Sẽ kết nối Supabase profiles)"
-            android:textAlignment="center"
-            android:textColor="@color/text_muted"
-            android:textSize="15sp" />
-    </FrameLayout>
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="8dp"
+        android:scrollbars="vertical" />
 
 </LinearLayout>

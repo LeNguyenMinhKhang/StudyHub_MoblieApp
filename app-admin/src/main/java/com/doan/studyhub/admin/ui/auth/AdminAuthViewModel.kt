@@ -80,51 +80,71 @@ class AdminAuthViewModel(
         val trimmedUsername = username.trim()
         val trimmedDisplayName = displayName.trim()
 
-        if (trimmedEmail.isBlank() || pass.isBlank() || trimmedUsername.isBlank() || trimmedDisplayName.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "Vui lòng nhập đầy đủ tất cả các trường thông tin") }
+        if (trimmedEmail.isBlank() || pass.isBlank() ||
+            trimmedUsername.isBlank() || trimmedDisplayName.isBlank()
+        ) {
+            _uiState.update {
+                it.copy(errorMessage = "Vui lòng nhập đầy đủ tất cả thông tin")
+            }
             return
         }
 
         if (pass.length < 6) {
-            _uiState.update { it.copy(errorMessage = "Mật khẩu phải có tối thiểu 6 ký tự") }
+            _uiState.update {
+                it.copy(errorMessage = "Mật khẩu phải có tối thiểu 6 ký tự")
+            }
             return
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            when (val res = authRepository.signUp(trimmedEmail, pass, trimmedUsername, trimmedDisplayName)) {
-                is ApiResponse.Success -> {
-                    when (val outcome = res.data) {
-                        is RegistrationOutcome.Authenticated -> {
-                            // Tự động gán quyền admin cho tài khoản đăng ký từ app admin
-                            authRepository.registerAdminRole()
+            _uiState.update {
+                it.copy(isLoading = true, errorMessage = null)
+            }
 
-                            // Sau khi gán quyền admin, profile cập nhật role = admin
-                            val adminProfile = outcome.profile.copy(role = "admin")
+            when (
+                val res = authRepository.signUp(
+                    trimmedEmail,
+                    pass,
+                    trimmedUsername,
+                    trimmedDisplayName
+                )
+            ) {
+                is ApiResponse.Success -> {
+                    when (res.data) {
+                        is RegistrationOutcome.Authenticated -> {
+                            // Tài khoản mới chỉ có quyền user.
+                            // Không gọi RPC cấp quyền Admin.
+                            authRepository.signOut()
 
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,
-                                    isAuthenticated = true,
-                                    profile = adminProfile,
-                                    errorMessage = null
+                                    isAuthenticated = false,
+                                    profile = null,
+                                    errorMessage = "Đăng ký thành công! Tài khoản đã được tạo. Vui lòng đăng nhập bằng tài khoản Admin hiện có."
                                 )
                             }
                         }
+
                         RegistrationOutcome.ConfirmationRequired -> {
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,
-                                    errorMessage = "Vui lòng kiểm tra email để xác nhận kích hoạt tài khoản quản trị!"
+                                    isAuthenticated = false,
+                                    profile = null,
+                                    errorMessage = "Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản."
                                 )
                             }
                         }
                     }
                 }
+
                 is ApiResponse.Failure -> {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
+                            isAuthenticated = false,
+                            profile = null,
                             errorMessage = res.error.message
                         )
                     }
