@@ -34,7 +34,8 @@ android {
 
 dependencies {
     implementation(project(":backend"))
-    
+
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.fragment.ktx)

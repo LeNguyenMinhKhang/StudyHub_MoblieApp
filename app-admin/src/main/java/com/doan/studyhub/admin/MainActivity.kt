@@ -1,5 +1,6 @@
 ﻿package com.doan.studyhub.admin
 
+import com.doan.studyhub.admin.ui.posts.PostsFragment
 import android.content.Intent
 import com.doan.studyhub.admin.ui.auth.AdminLoginActivity
 import android.os.Bundle
@@ -108,7 +109,14 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 // Các chức năng chưa có source code, tạm chưa mở
-                R.id.nav_posts,
+                R.id.nav_posts -> {
+                    switchFragment(
+                        PostsFragment(),
+                        "Quản lý bài viết"
+                    )
+                    true
+                }
+
                 R.id.nav_reports -> false
 
                 else -> false
