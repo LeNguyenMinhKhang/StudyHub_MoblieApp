@@ -20,6 +20,9 @@ class AdminPostViewModel : ViewModel() {
     private var currentOffset = 0
     private var hasMore = true
 
+    // Bộ lọc bài viết theo tác giả
+    private var currentAuthorId: String? = null
+
     private val _posts = MutableStateFlow<List<AdminPost>>(emptyList())
     val posts: StateFlow<List<AdminPost>> = _posts.asStateFlow()
 
@@ -28,6 +31,19 @@ class AdminPostViewModel : ViewModel() {
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    // Thiết lập bộ lọc tác giả
+    fun setAuthorFilter(authorId: String?) {
+        if (currentAuthorId == authorId) return
+
+        currentAuthorId = authorId
+        currentSearch = ""
+        currentOffset = 0
+        hasMore = true
+
+        _posts.value = emptyList()
+        _error.value = null
+    }
 
     // Tải danh sách bài viết
     fun loadPosts(refresh: Boolean = false) {
@@ -47,7 +63,8 @@ class AdminPostViewModel : ViewModel() {
                 val result = repository.getPosts(
                     search = currentSearch.ifBlank { null },
                     limit = pageSize,
-                    offset = currentOffset
+                    offset = currentOffset,
+                    authorId = currentAuthorId
                 )
 
                 if (refresh) {
@@ -94,10 +111,11 @@ class AdminPostViewModel : ViewModel() {
 
                 if (deleted) {
                     _posts.value = _posts.value.filter { it.id != postId }
-                    currentOffset = (_posts.value.size)
+                    currentOffset = _posts.value.size
                     hasMore = true
                 } else {
-                    _error.value = "Không thể xóa bài viết hoặc bài viết không tồn tại."
+                    _error.value =
+                        "Không thể xóa bài viết hoặc bài viết không tồn tại."
                 }
 
             } catch (e: Exception) {
@@ -112,6 +130,7 @@ class AdminPostViewModel : ViewModel() {
     fun refreshPosts() {
         loadPosts(refresh = true)
     }
+
     // Lấy dữ liệu chi tiết bài viết từ Supabase
     suspend fun getPostDetail(postId: String): JsonObject? {
         return repository.getPostDetail(postId)

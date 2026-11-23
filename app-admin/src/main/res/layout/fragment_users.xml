@@ -42,14 +42,24 @@
         android:inputType="text"
         android:imeOptions="actionSearch" />
 
+    <!-- Role tabs -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabUserRoles"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabIndicatorFullWidth="false" />
+
     <!-- User count -->
     <TextView
         android:id="@+id/tvUserCount"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="12dp"
         android:layout_marginBottom="10dp"
-        android:text="Danh sách tài khoản"
+        android:text="Danh sách tài khoản (0)"
         android:textColor="@color/text_primary"
         android:textSize="15sp"
         android:textStyle="bold" />

@@ -22,6 +22,25 @@ import kotlinx.coroutines.launch
 
 class PostsFragment : Fragment() {
 
+    companion object {
+        private const val ARG_AUTHOR_ID = "author_id"
+        private const val ARG_AUTHOR_NAME = "author_name"
+
+        fun newInstance(authorId: String, authorName: String): PostsFragment {
+            return PostsFragment().apply {
+                arguments = Bundle().apply {
+                    putString(ARG_AUTHOR_ID, authorId)
+                    putString(ARG_AUTHOR_NAME, authorName)
+                }
+            }
+        }
+    }
+
+    private val authorId: String?
+        get() = arguments?.getString(ARG_AUTHOR_ID)
+
+    private val authorName: String?
+        get() = arguments?.getString(ARG_AUTHOR_NAME)
     private var _binding: FragmentAdminPostsBinding? = null
     private val binding get() = requireNotNull(_binding)
 
@@ -55,6 +74,10 @@ class PostsFragment : Fragment() {
         setupSearch()
         observeViewModel()
 
+        // Thiết lập bộ lọc tác giả trước khi tải dữ liệu
+        viewModel.setAuthorFilter(authorId)
+
+        // Tải danh sách bài viết
         viewModel.loadPosts(refresh = true)
     }
 
@@ -133,8 +156,11 @@ class PostsFragment : Fragment() {
             viewModel.posts.collect { posts ->
                 postAdapter.submitList(posts)
 
-                binding.tvPostSummary.text =
+                binding.tvPostSummary.text = if (authorId != null) {
+                    "Bài viết của ${authorName ?: "User"} (${posts.size})"
+                } else {
                     "Danh sách bài viết (${posts.size})"
+                }
 
                 updateEmptyState()
             }

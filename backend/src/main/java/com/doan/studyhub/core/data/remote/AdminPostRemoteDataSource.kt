@@ -20,16 +20,19 @@ class AdminPostRemoteDataSource {
     }
 
     // Lấy danh sách bài viết (tìm kiếm + phân trang)
+    // Lấy danh sách bài viết (tìm kiếm + phân trang + lọc theo tác giả)
     suspend fun getPosts(
         search: String? = null,
         limit: Int = 20,
-        offset: Int = 0
+        offset: Int = 0,
+        authorId: String? = null
     ): List<AdminPost> {
 
         val parameters = buildJsonObject {
             put("p_search", search?.let { JsonPrimitive(it) } ?: JsonNull)
             put("p_limit", JsonPrimitive(limit))
             put("p_offset", JsonPrimitive(offset))
+            put("p_author_id", authorId?.let { JsonPrimitive(it) } ?: JsonNull)
         }
 
         val result = client.postgrest.rpc(

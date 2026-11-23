@@ -1,3 +1,4 @@
+
 package com.doan.studyhub.admin.ui.users
 
 import android.os.Bundle
@@ -5,13 +6,17 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.doan.studyhub.admin.MainActivity
 import com.doan.studyhub.admin.databinding.FragmentUsersBinding
+import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -25,6 +30,7 @@ class UsersFragment : Fragment() {
     private lateinit var userAdapter: AdminUserAdapter
 
     private var searchJob: Job? = null
+    private var isUpdatingSearchText = false
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -40,6 +46,7 @@ class UsersFragment : Fragment() {
 
         viewModel = ViewModelProvider(this)[AdminUserViewModel::class.java]
 
+        setupRoleTabs()
         setupRecyclerView()
         setupSearch()
         observeViewModel()
@@ -48,12 +55,69 @@ class UsersFragment : Fragment() {
             viewModel.refreshUsers()
         }
 
-        // Tải danh sách lần đầu
+        // Load initial role
         viewModel.loadUsers(refresh = true)
     }
 
+    private fun setupRoleTabs() {
+        binding.tabUserRoles.apply {
+            addTab(newTab().setText("User"))
+            addTab(newTab().setText("Admin"))
+            selectTab(getTabAt(0))
+
+            addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+
+                override fun onTabSelected(tab: TabLayout.Tab) {
+                    val role = if (tab.position == 1) "admin" else "user"
+                    viewModel.selectRole(role)
+                }
+
+                override fun onTabUnselected(tab: TabLayout.Tab) = Unit
+
+                override fun onTabReselected(tab: TabLayout.Tab) {
+                    viewModel.refreshUsers()
+                }
+            })
+        }
+    }
+
     private fun setupRecyclerView() {
-        userAdapter = AdminUserAdapter()
+        userAdapter = AdminUserAdapter(
+            onUserClick = { user ->
+                // Chỉ mở bài viết đối với tài khoản User
+                if (user.role.equals("user", ignoreCase = true)) {
+                    val displayName = user.displayName
+                        ?: user.username
+                        ?: user.email
+                        ?: "User"
+
+                    (requireActivity() as? MainActivity)
+                        ?.openPostsForUser(user.id, displayName)
+                }
+            },
+
+            onBanClick = { user ->
+                if (user.role.equals("user", ignoreCase = true)) {
+                    val name = user.displayName
+                        ?: user.username
+                        ?: user.email
+                        ?: "User"
+
+                    showBanConfirmation(user.id, name)
+                }
+            },
+
+            onUnbanClick = { user ->
+                if (user.role.equals("user", ignoreCase = true)) {
+                    val name = user.displayName
+                        ?: user.username
+                        ?: user.email
+                        ?: "User"
+
+                    showUnbanConfirmation(user.id, name)
+                }
+            }
+        )
 
         binding.rvUsers.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -77,9 +141,7 @@ class UsersFragment : Fragment() {
                     val lastVisibleItem =
                         layoutManager.findLastVisibleItemPosition()
 
-                    if (totalItems > 0 &&
-                        lastVisibleItem >= totalItems - 5
-                    ) {
+                    if (totalItems > 0 && lastVisibleItem >= totalItems - 5) {
                         viewModel.loadMore()
                     }
                 }
@@ -87,9 +149,33 @@ class UsersFragment : Fragment() {
         }
     }
 
+    private fun showBanConfirmation(userId: String, userName: String) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Ban người dùng")
+            .setMessage("Bạn có chắc muốn ban tài khoản \"$userName\" không?")
+            .setNegativeButton("Hủy", null)
+            .setPositiveButton("Ban") { _, _ ->
+                viewModel.banUser(userId)
+            }
+            .show()
+    }
+
+    private fun showUnbanConfirmation(userId: String, userName: String) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Gỡ ban người dùng")
+            .setMessage("Bạn có chắc muốn gỡ ban tài khoản \"$userName\" không?")
+            .setNegativeButton("Hủy", null)
+            .setPositiveButton("Gỡ ban") { _, _ ->
+                viewModel.unbanUser(userId)
+            }
+            .show()
+    }
+
     private fun setupSearch() {
         binding.etUserSearch.addTextChangedListener(
             afterTextChanged = { editable ->
+                if (isUpdatingSearchText) return@addTextChangedListener
+
                 val query = editable?.toString().orEmpty()
 
                 searchJob?.cancel()
@@ -114,21 +200,18 @@ class UsersFragment : Fragment() {
     }
 
     private fun observeViewModel() {
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.users.collect { users ->
                 userAdapter.submitList(users)
+                updateUserCount()
+                updateEmptyState()
+            }
+        }
 
-                binding.tvUserCount.text =
-                    "Danh sách tài khoản (${users.size})"
-
-                binding.tvUsersEmpty.visibility =
-                    if (users.isEmpty() && !viewModel.isLoading.value
-                        && viewModel.error.value == null
-                    ) {
-                        View.VISIBLE
-                    } else {
-                        View.GONE
-                    }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.selectedRole.collect {
+                updateUserCount()
             }
         }
 
@@ -137,15 +220,7 @@ class UsersFragment : Fragment() {
                 binding.pbUsersLoading.visibility =
                     if (loading) View.VISIBLE else View.GONE
 
-                binding.tvUsersEmpty.visibility =
-                    if (viewModel.users.value.isEmpty()
-                        && !loading
-                        && viewModel.error.value == null
-                    ) {
-                        View.VISIBLE
-                    } else {
-                        View.GONE
-                    }
+                updateEmptyState()
             }
         }
 
@@ -159,17 +234,66 @@ class UsersFragment : Fragment() {
                         "$it\n\nNhấn vào đây để thử lại"
                     } ?: ""
 
-                binding.tvUsersEmpty.visibility =
-                    if (viewModel.users.value.isEmpty()
-                        && !viewModel.isLoading.value
-                        && errorMessage == null
-                    ) {
-                        View.VISIBLE
-                    } else {
-                        View.GONE
-                    }
+                updateEmptyState()
             }
         }
+
+        // Quan sát trạng thái thao tác Ban/Unban
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.actionSuccess.collect { message: String? ->
+                if (message != null) {
+                    Toast.makeText(
+                        requireContext(),
+                        message,
+                        Toast.LENGTH_SHORT
+                    ).show()
+
+                    viewModel.clearActionMessages()
+                }
+            }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.actionError.collect { message: String? ->
+                if (message != null) {
+                    Toast.makeText(
+                        requireContext(),
+                        message,
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    viewModel.clearActionMessages()
+                }
+            }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.actionLoadingUserId.collect { loadingUserId ->
+                // Cập nhật nút Ban/Unban của item khi có thao tác
+                userAdapter.setLoadingUser(loadingUserId)
+            }
+        }
+    }
+
+    private fun updateUserCount() {
+        val roleLabel =
+            if (viewModel.selectedRole.value == "admin") "Admin"
+            else "User"
+
+        binding.tvUserCount.text =
+            "Danh sách $roleLabel (${viewModel.users.value.size})"
+    }
+
+    private fun updateEmptyState() {
+        binding.tvUsersEmpty.visibility =
+            if (viewModel.users.value.isEmpty()
+                && !viewModel.isLoading.value
+                && viewModel.error.value == null
+            ) {
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
     }
 
     override fun onDestroyView() {

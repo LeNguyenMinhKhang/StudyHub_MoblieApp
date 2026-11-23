@@ -8,15 +8,17 @@ class AdminPostRepository(
         AdminPostRemoteDataSource()
 ) {
 
-    // Lấy danh sách bài viết
+    // Lấy danh sách bài viết (tìm kiếm + phân trang + lọc tác giả)
     suspend fun getPosts(
         search: String? = null,
         limit: Int = 20,
-        offset: Int = 0
+        offset: Int = 0,
+        authorId: String? = null
     ) = remoteDataSource.getPosts(
         search = search,
         limit = limit,
-        offset = offset
+        offset = offset,
+        authorId = authorId
     )
 
     // Lấy chi tiết bài viết

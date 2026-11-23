@@ -1,3 +1,4 @@
+
 package com.doan.studyhub.core.data.remote
 
 import com.doan.studyhub.core.data.SupabaseClient
@@ -13,13 +14,10 @@ open class AdminUserRemoteDataSource {
 
     /**
      * Lấy danh sách người dùng từ RPC admin_list_users.
-     *
-     * @param search Từ khóa tìm theo email, username hoặc display name.
-     * @param limit Số lượng người dùng mỗi trang.
-     * @param offset Vị trí bắt đầu lấy dữ liệu.
      */
     open suspend fun listUsers(
         search: String? = null,
+        role: String? = null,
         limit: Int = 50,
         offset: Int = 0
     ): List<AdminUser> =
@@ -27,8 +25,33 @@ open class AdminUserRemoteDataSource {
             "admin_list_users",
             buildJsonObject {
                 put("p_search", search)
+                put("p_role", role)
                 put("p_limit", limit.coerceIn(1, 100))
                 put("p_offset", offset.coerceAtLeast(0))
             }
         ).decodeList<AdminUser>()
+
+    /**
+     * Ban một người dùng role user.
+     */
+    open suspend fun banUser(userId: String) {
+        postgrest.rpc(
+            "admin_ban_user",
+            buildJsonObject {
+                put("p_user_id", userId)
+            }
+        )
+    }
+
+    /**
+     * Gỡ ban một người dùng role user.
+     */
+    open suspend fun unbanUser(userId: String) {
+        postgrest.rpc(
+            "admin_unban_user",
+            buildJsonObject {
+                put("p_user_id", userId)
+            }
+        )
+    }
 }
