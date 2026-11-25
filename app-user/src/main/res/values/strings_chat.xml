@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_default_title">Trò chuyện</string>
+    <string name="chat_peer_subtitle">Thành viên StudyHub</string>
+    <string name="chat_members_count">%1$d thành viên</string>
+    <string name="chat_back">Quay lại</string>
+    <string name="chat_call_audio">Gọi thoại nhóm</string>
+    <string name="chat_call_video">Gọi video nhóm</string>
+    <string name="chat_call_audio_join">Tham gia cuộc gọi thoại</string>
+    <string name="chat_call_video_join">Tham gia cuộc gọi video</string>
+    <string name="chat_group_info">Thông tin nhóm</string>
+    <string name="chat_hint">Nhập tin nhắn…</string>
+    <string name="chat_send">Gửi tin nhắn</string>
+    <string name="chat_send_image">Gửi ảnh</string>
+    <string name="chat_send_document">Gửi tài liệu</string>
+    <string name="chat_more_actions">Hiện thêm hành động</string>
+    <string name="chat_group_empty">Chưa có tin nhắn nào. Hãy gửi lời chào đến cả nhóm!</string>
+    <string name="chat_direct_empty">Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!</string>
+    <string name="chat_sender_fallback">Thành viên</string>
+    <string name="chat_status_sending">Đang gửi</string>
+    <string name="chat_status_sent">Đã gửi</string>
+    <string name="chat_status_read">Đã xem</string>
+    <string name="chat_status_failed">Gửi lỗi, chạm để thử lại</string>
+    <string name="chat_avatar_of">Ảnh đại diện của %1$s</string>
+    <string name="chat_call_bar_join">Tham gia</string>
+    <string name="chat_call_bar_return">Quay lại cuộc gọi</string>
+    <string name="chat_image_cannot_read">Không thể đọc dữ liệu ảnh</string>
+    <string name="chat_image_error">Lỗi khi xử lý ảnh: %1$s</string>
+    <string name="chat_file_cannot_read">Không thể đọc dữ liệu tệp</string>
+    <string name="chat_file_error">Lỗi khi xử lý tài liệu: %1$s</string>
+    <string name="chat_file_too_large">Dung lượng tệp vượt quá 20MB. Vui lòng chọn tệp nhỏ hơn!</string>
+    <string name="chat_link_cannot_open">Không thể mở liên kết này</string>
+
+    <string name="group_edit_info">Sửa tên và mô tả</string>
+    <string name="group_add_member">Thêm thành viên</string>
+    <string name="group_no_subject">Không gắn môn học</string>
+    <string name="group_summary_no_subject">%1$d thành viên · %2$s</string>
+    <string name="group_create_icon">Tạo nhóm mới</string>
+</resources>

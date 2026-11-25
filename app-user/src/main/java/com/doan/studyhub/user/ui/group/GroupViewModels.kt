@@ -92,7 +92,8 @@ open class GroupBrowserViewModel @JvmOverloads constructor(
             mutable.value = mutable.value.copy(detail = detail,
                 rows = if (section == GroupSection.MEMBERS && detail?.role != GroupRole.OWNER)
                     mutable.value.rows.map { it.copy(actions = emptyList()) } else mutable.value.rows)
-            if (section in setOf(GroupSection.PENDING, GroupSection.FRIENDS) && detail?.role != GroupRole.OWNER) {
+            // Pending invitations stay owner-only; any member may invite their own friends.
+            if (section == GroupSection.PENDING && detail?.role != GroupRole.OWNER) {
                 knownPending.clear()
                 mutable.value = GroupBrowseState(section = GroupSection.MEMBERS, detail = detail)
                 refresh()
@@ -106,7 +107,7 @@ open class GroupBrowserViewModel @JvmOverloads constructor(
                     is ApiResponse.Success -> {
                         if (!valid(request)) return@launch
                         cursor = result.data.nextCursor; more = cursor != null
-                        rows = result.data.items.map { GroupRow(it.id, it.name, it.subject.name, listOf(GroupAction.OPEN)) }
+                        rows = result.data.items.map { GroupRow(it.id, it.name, it.subject?.name.orEmpty(), listOf(GroupAction.OPEN)) }
                     }
                 }
                 GroupSection.INCOMING -> when (val result = groups.incoming(cursor)) {
@@ -115,7 +116,7 @@ open class GroupBrowserViewModel @JvmOverloads constructor(
                         if (!valid(request)) return@launch
                         cursor = result.data.nextCursor; more = cursor != null
                         rows = result.data.items.map { GroupRow(it.id, it.groupName,
-                            listOfNotNull(it.subject.name, it.description, it.inviter.displayName).joinToString("\n"), listOf(GroupAction.ACCEPT, GroupAction.DECLINE)) }
+                            listOfNotNull(it.subject?.name, it.description, it.inviter.displayName).joinToString("\n"), listOf(GroupAction.ACCEPT, GroupAction.DECLINE)) }
                     }
                 }
                 GroupSection.MEMBERS -> when (val result = groups.members(requireNotNull(groupId), cursor)) {
@@ -142,10 +143,6 @@ open class GroupBrowserViewModel @JvmOverloads constructor(
                     }
                 }
                 GroupSection.FRIENDS -> {
-                    if (detail?.role != GroupRole.OWNER) {
-                        mutable.value = mutable.value.copy(loading = false, rows = emptyList(), detail = detail, error = ErrorType.PERMISSION_DENIED.userMessage)
-                        return@launch
-                    }
                     if (!append) {
                         // Reconcile known eligibility on refresh; the invite RPC checks the full group.
                         when (val result = groups.members(requireNotNull(groupId), limit = 50)) {
@@ -156,12 +153,16 @@ open class GroupBrowserViewModel @JvmOverloads constructor(
                                 knownMembers += result.data.items.map { it.userId }
                             }
                         }
-                        when (val result = groups.invitations(requireNotNull(groupId), limit = 50)) {
-                            is ApiResponse.Failure -> { finishFailure(result, request); return@launch }
-                            is ApiResponse.Success -> {
-                                if (!valid(request)) return@launch
-                                knownPending.clear()
-                                knownPending += result.data.items.mapNotNull { it.invitee?.id }
+                        // Only the owner can read the pending list; for other members the server
+                        // returns the existing invitation when someone was already invited.
+                        if (detail?.role == GroupRole.OWNER) {
+                            when (val result = groups.invitations(requireNotNull(groupId), limit = 50)) {
+                                is ApiResponse.Failure -> { finishFailure(result, request); return@launch }
+                                is ApiResponse.Success -> {
+                                    if (!valid(request)) return@launch
+                                    knownPending.clear()
+                                    knownPending += result.data.items.mapNotNull { it.invitee?.id }
+                                }
                             }
                         }
                     }
@@ -292,10 +293,11 @@ class CreateGroupViewModel @JvmOverloads constructor(
         }
     }
     fun submit() {
-        if (!syncSession() || mutable.value.busy || mutable.value.loading) return
+        // The subject is optional: loading the subject list only blocks a submit that needs a subject.
+        if (!syncSession() || mutable.value.busy || (mutable.value.loading && mutable.value.subjectId != null)) return
         val state = mutable.value
-        val subject = state.subjectId ?: run { mutable.value = state.copy(error = ErrorType.VALIDATION_FAILED.userMessage); return }
-        val payload = listOf(subject, state.name.trim(), state.description.trim())
+        val subject = state.subjectId
+        val payload = listOf(subject.orEmpty(), state.name.trim(), state.description.trim())
         if (saved.get<ArrayList<String>>("payload") != ArrayList(payload)) {
             saved["request"] = UUID.randomUUID().toString(); saved["payload"] = ArrayList(payload)
         }

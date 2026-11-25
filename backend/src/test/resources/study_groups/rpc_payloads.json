@@ -1,6 +1,6 @@
 {
   "detail": {
-    "id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d",
+    "id": "69f31ea2-647e-481c-9597-7a285e691878",
     "name": "Nhóm 📚",
     "role": "owner",
     "subject": {
@@ -8,15 +8,15 @@
       "name": "Test subject",
       "is_active": true
     },
-    "created_at": "2026-11-13T06:26:54.025195+00:00",
-    "updated_at": "2026-11-13T06:26:54.025195+00:00",
+    "created_at": "2026-11-25T15:55:21.080351+00:00",
+    "updated_at": "2026-11-25T15:55:21.080351+00:00",
     "description": null,
     "member_count": 1
   },
   "groups": {
     "items": [
       {
-        "id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d",
+        "id": "69f31ea2-647e-481c-9597-7a285e691878",
         "name": "Nhóm 📚",
         "role": "owner",
         "subject": {
@@ -24,8 +24,8 @@
           "name": "Test subject",
           "is_active": true
         },
-        "created_at": "2026-11-13T06:26:54.025195+00:00",
-        "updated_at": "2026-11-13T06:26:54.025195+00:00",
+        "created_at": "2026-11-25T15:55:21.080351+00:00",
+        "updated_at": "2026-11-25T15:55:21.080351+00:00",
         "description": null,
         "member_count": 1
       }
@@ -37,7 +37,7 @@
       {
         "role": "owner",
         "user_id": "00000000-0000-0000-0000-000000000001",
-        "joined_at": "2026-11-13T06:26:54.025195+00:00",
+        "joined_at": "2026-11-25T15:55:21.080351+00:00",
         "avatar_url": null,
         "display_name": "Test 0"
       }
@@ -47,7 +47,7 @@
   "incoming": {
     "items": [
       {
-        "id": "ee2b65d9-f50f-4b3c-be5d-cd745436643f",
+        "id": "17c5b503-1aa3-4063-b484-deed9411486d",
         "status": "pending",
         "inviter": {
           "id": "00000000-0000-0000-0000-000000000001",
@@ -59,8 +59,8 @@
           "name": "Test subject",
           "is_active": true
         },
-        "group_id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d",
-        "created_at": "2026-11-13T06:26:54.321723+00:00",
+        "group_id": "69f31ea2-647e-481c-9597-7a285e691878",
+        "created_at": "2026-11-25T15:55:21.401048+00:00",
         "group_name": "Nhóm 📚",
         "description": null
       }
@@ -70,7 +70,7 @@
   "outgoing": {
     "items": [
       {
-        "id": "ee2b65d9-f50f-4b3c-be5d-cd745436643f",
+        "id": "17c5b503-1aa3-4063-b484-deed9411486d",
         "status": "pending",
         "invitee": {
           "id": "00000000-0000-0000-0000-000000000003",
@@ -87,8 +87,8 @@
           "name": "Test subject",
           "is_active": true
         },
-        "group_id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d",
-        "created_at": "2026-11-13T06:26:54.321723+00:00",
+        "group_id": "69f31ea2-647e-481c-9597-7a285e691878",
+        "created_at": "2026-11-25T15:55:21.401048+00:00",
         "group_name": "Nhóm 📚",
         "description": null
       }
@@ -96,12 +96,22 @@
     "next_cursor": null
   },
   "invitation_result": {
-    "id": "ee2b65d9-f50f-4b3c-be5d-cd745436643f",
+    "id": "17c5b503-1aa3-4063-b484-deed9411486d",
     "status": "pending",
-    "group_id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d"
+    "group_id": "69f31ea2-647e-481c-9597-7a285e691878"
   },
   "mutation_result": {
     "status": "archived",
-    "group_id": "e7434df1-e4f8-43b2-a955-bf62fb33a90d"
+    "group_id": "69f31ea2-647e-481c-9597-7a285e691878"
+  },
+  "detail_no_subject": {
+    "id": "5fdb5da3-de93-4448-90c2-29a5ba04f217",
+    "name": "Nhóm không môn",
+    "role": "owner",
+    "subject": null,
+    "created_at": "2026-11-25T15:55:22.205218+00:00",
+    "updated_at": "2026-11-25T15:55:22.205218+00:00",
+    "description": null,
+    "member_count": 1
   }
 }

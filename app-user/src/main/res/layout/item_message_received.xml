@@ -1,108 +1,141 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingHorizontal="16dp"
-    android:paddingVertical="4dp">
+    android:gravity="bottom"
+    android:orientation="horizontal"
+    android:paddingStart="8dp"
+    android:paddingEnd="48dp"
+    android:paddingVertical="1dp">
+
+    <!-- Avatar slot: invisible (not gone) so bubbles of a run stay aligned -->
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/ivAvatar"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginEnd="6dp"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_person"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full" />
 
     <LinearLayout
-        android:id="@+id/bubbleContainer"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_message_bubble_received"
-        android:maxWidth="280dp"
-        android:orientation="vertical"
-        android:paddingHorizontal="12dp"
-        android:paddingVertical="8dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        android:layout_weight="1"
+        android:orientation="vertical">
 
         <TextView
-            android:id="@+id/tvMessage"
+            android:id="@+id/tvSenderName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp"
-            tools:text="Mình vừa gửi tài liệu qua rồi nhé, bạn kiểm tra lại xem!" />
-
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/ivMessageImage"
-            android:layout_width="220dp"
-            android:layout_height="220dp"
-            android:layout_marginTop="2dp"
-            android:scaleType="centerCrop"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/text_muted"
+            android:textSize="12sp"
             android:visibility="gone"
-            app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
-            tools:src="@drawable/logo1" />
+            tools:text="Nguyễn Văn A"
+            tools:visibility="visible" />
 
-        <!-- Layout Document / Attachment -->
         <LinearLayout
-            android:id="@+id/layoutDocument"
-            android:layout_width="230dp"
+            android:id="@+id/bubbleContainer"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:background="@drawable/bg_chat_doc_received"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="8dp"
-            android:visibility="gone"
-            tools:visibility="visible">
+            android:background="@drawable/bg_message_bubble_received"
+            android:orientation="vertical"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="8dp">
 
-            <ImageView
-                android:id="@+id/ivDocIcon"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:src="@drawable/ic_file_document"
-                app:tint="@color/primary" />
+            <TextView
+                android:id="@+id/tvMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxWidth="260dp"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                tools:text="Mình vừa gửi tài liệu qua rồi nhé, bạn kiểm tra lại xem!" />
+
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/ivMessageImage"
+                android:layout_width="220dp"
+                android:layout_height="220dp"
+                android:layout_marginTop="2dp"
+                android:scaleType="centerCrop"
+                android:visibility="gone"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
+                tools:src="@drawable/logo1" />
 
             <LinearLayout
-                android:layout_width="0dp"
+                android:id="@+id/layoutDocument"
+                android:layout_width="230dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="6dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_chat_doc_received"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="8dp"
+                android:visibility="gone"
+                tools:visibility="visible">
 
-                <TextView
-                    android:id="@+id/tvDocName"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="middle"
-                    android:maxLines="1"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    tools:text="De_cuong_on_tap.pdf" />
+                <ImageView
+                    android:id="@+id/ivDocIcon"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_file_document"
+                    app:tint="@color/primary" />
 
-                <TextView
-                    android:id="@+id/tvDocSize"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:textColor="@color/text_muted"
-                    android:textSize="11sp"
-                    tools:text="1.5 MB • PDF" />
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvDocName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="middle"
+                        android:maxLines="1"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        tools:text="De_cuong_on_tap.pdf" />
+
+                    <TextView
+                        android:id="@+id/tvDocSize"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp"
+                        tools:text="1.5 MB • PDF" />
+                </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/ivDocAction"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_download_file"
+                    app:tint="@color/text_secondary" />
             </LinearLayout>
 
-            <ImageView
-                android:id="@+id/ivDocAction"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:src="@drawable/ic_download_file"
-                app:tint="@color/text_secondary" />
+            <TextView
+                android:id="@+id/tvTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp"
+                tools:text="14:33" />
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/tvTime"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="start"
-            android:layout_marginTop="4dp"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            tools:text="14:33" />
     </LinearLayout>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>

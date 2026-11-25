@@ -1,25 +1,177 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="16dp" android:orientation="vertical">
-        <Button android:id="@+id/btnBack" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/group_back" />
-        <TextView android:id="@+id/title" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="24sp" android:accessibilityHeading="true" />
-        <TextView android:id="@+id/summary" android:layout_width="match_parent" android:layout_height="wrap_content" />
-        <LinearLayout android:id="@+id/callBanner" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginVertical="8dp" android:padding="8dp" android:background="#E0F2FE">
-            <TextView android:id="@+id/callStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:accessibilityLiveRegion="polite" />
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                <Button android:id="@+id/btnCallAudio" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/call_start_audio" />
-                <Button android:id="@+id/btnCallVideo" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/call_start_video" />
-            </LinearLayout>
-            <Button android:id="@+id/btnCallReturn" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/call_return" android:visibility="gone" />
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface_light"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="16dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_margin="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/group_back"
+            android:src="@drawable/ic_arrow_back"
+            app:tint="@color/primary" />
+
+        <!-- Header: avatar, name, subject (only when the group has one) and member count -->
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/ivAvatar"
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:layout_gravity="center_horizontal"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full" />
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:accessibilityHeading="true"
+            android:gravity="center"
+            android:paddingHorizontal="24dp"
+            android:textColor="@color/text_primary"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            tools:text="Giải tích 1" />
+
+        <TextView
+            android:id="@+id/summary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingHorizontal="24dp"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp"
+            tools:text="Toán · 5 thành viên · Trưởng nhóm" />
+
+        <TextView
+            android:id="@+id/tvDescription"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:paddingHorizontal="24dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:accessibilityLiveRegion="polite"
+            android:gravity="center"
+            android:paddingHorizontal="24dp"
+            android:paddingTop="8dp" />
+
+        <Button
+            android:id="@+id/btnRetry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:text="@string/group_retry" />
+
+        <!-- Owner only: edit name and description -->
+        <LinearLayout
+            android:id="@+id/layoutEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:drawablePadding="12dp"
+                android:gravity="center_vertical"
+                android:text="@string/group_edit_info"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold"
+                app:drawableStartCompat="@drawable/ic_edit" />
+
+            <EditText
+                android:id="@+id/name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/group_name"
+                android:inputType="textCapSentences"
+                android:minHeight="48dp" />
+
+            <EditText
+                android:id="@+id/description"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="top"
+                android:hint="@string/group_description"
+                android:inputType="textMultiLine|textCapSentences"
+                android:minHeight="96dp" />
+
+            <Button
+                android:id="@+id/btnSave"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/group_save" />
         </LinearLayout>
-        <EditText android:id="@+id/name" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:hint="@string/group_name" android:inputType="textCapSentences" />
-        <EditText android:id="@+id/description" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="96dp" android:hint="@string/group_description" android:inputType="textMultiLine|textCapSentences" android:gravity="top" />
-        <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:accessibilityLiveRegion="polite" />
-        <Button android:id="@+id/btnRetry" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/group_retry" />
-        <Button android:id="@+id/btnSave" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/group_save" />
-        <Button android:id="@+id/btnMembers" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/group_members" />
-        <Button android:id="@+id/btnDocuments" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/doc_open_library" />
-        <Button android:id="@+id/btnLeave" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/group_leave" />
-        <Button android:id="@+id/btnArchive" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/group_archive" />
+
+        <!-- Icon rows -->
+        <LinearLayout
+            android:id="@+id/btnAddMember"
+            style="@style/GroupInfoRow">
+
+            <ImageView style="@style/GroupInfoRowIcon" android:src="@drawable/ic_person_add" app:tint="@color/primary" />
+
+            <TextView style="@style/GroupInfoRowLabel" android:text="@string/group_add_member" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/btnMembers"
+            style="@style/GroupInfoRow">
+
+            <ImageView style="@style/GroupInfoRowIcon" android:src="@drawable/ic_group" app:tint="@color/primary" />
+
+            <TextView style="@style/GroupInfoRowLabel" android:text="@string/group_members" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/btnDocuments"
+            style="@style/GroupInfoRow">
+
+            <ImageView style="@style/GroupInfoRowIcon" android:src="@drawable/ic_folder" app:tint="@color/primary" />
+
+            <TextView style="@style/GroupInfoRowLabel" android:text="@string/doc_open_library" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/btnLeave"
+            style="@style/GroupInfoRow">
+
+            <ImageView style="@style/GroupInfoRowIcon" android:src="@drawable/ic_logout" app:tint="@color/error" />
+
+            <TextView style="@style/GroupInfoRowLabel" android:text="@string/group_leave" android:textColor="@color/error" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/btnArchive"
+            style="@style/GroupInfoRow">
+
+            <ImageView style="@style/GroupInfoRowIcon" android:src="@drawable/ic_delete" app:tint="@color/error" />
+
+            <TextView style="@style/GroupInfoRowLabel" android:text="@string/group_archive" android:textColor="@color/error" />
+        </LinearLayout>
     </LinearLayout>
 </ScrollView>

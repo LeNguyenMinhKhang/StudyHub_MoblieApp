@@ -2,8 +2,11 @@ package com.doan.studyhub.user.ui.group.document
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.OpenableColumns
 import android.text.InputType
 import android.view.LayoutInflater
@@ -14,6 +17,7 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -146,7 +150,7 @@ class DocumentLibraryFragment : Fragment() {
         }
         b.rows.layoutManager = LinearLayoutManager(requireContext()); b.rows.adapter = adapter
         b.tvTitle.setText(if (versions) R.string.doc_versions_title else R.string.doc_title)
-        b.btnUpload.setText(if (versions) R.string.doc_new_version else R.string.doc_upload)
+        b.btnUpload.contentDescription = getString(if (versions) R.string.doc_new_version else R.string.doc_upload)
         b.btnBack.setOnClickListener { home()?.closeDetail() }
         b.btnUpload.setOnClickListener { pick(documentId) }
         b.btnRetry.setOnClickListener { if (model.state.value.canRetryUpload) model.retryUpload() else model.refresh() }
@@ -266,6 +270,28 @@ class DocumentViewerFragment : Fragment(), PdfPageView.Listener {
         return FragmentDocumentViewerBinding.inflate(inflater, container, false).also { binding = it }.root
     }
 
+    private var autoDimRunnable: Runnable? = null
+    private val autoDimHandler = Handler(Looper.getMainLooper())
+
+    private fun resetAutoDimTimer() {
+        val b = binding ?: return
+        autoDimRunnable?.let { autoDimHandler.removeCallbacks(it) }
+        b.topPagePill.animate().alpha(1.0f).setDuration(150).start()
+        b.bottomToolbar.animate().alpha(1.0f).setDuration(150).start()
+        val runnable = Runnable {
+            binding?.let { binding ->
+                binding.topPagePill.animate().alpha(0.25f).setDuration(400).start()
+                binding.bottomToolbar.animate().alpha(0.25f).setDuration(400).start()
+            }
+        }
+        autoDimRunnable = runnable
+        autoDimHandler.postDelayed(runnable, 10000L)
+    }
+
+    override fun onTouchUser() {
+        resetAutoDimTimer()
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val b = requireNotNull(binding)
         b.page.listener = this
@@ -274,24 +300,26 @@ class DocumentViewerFragment : Fragment(), PdfPageView.Listener {
         b.btnBack.setOnClickListener { model.stopGuiding(); home()?.closeDetail() } // the call itself continues
         b.btnRetry.setOnClickListener { model.retry() }
         bindCallBar(b)
-        b.btnPrev.setOnClickListener { model.goTo(model.state.value.page - 1) }
-        b.btnNext.setOnClickListener { model.goTo(model.state.value.page + 1) }
-        b.btnRotate.setOnClickListener { b.page.rotateClockwise() }
-        b.btnFit.setOnClickListener { b.page.resetZoom() }
+        b.btnPrev.setOnClickListener { model.goTo(model.state.value.page - 1); resetAutoDimTimer() }
+        b.btnNext.setOnClickListener { model.goTo(model.state.value.page + 1); resetAutoDimTimer() }
+        b.btnRotate.setOnClickListener { b.page.rotateClockwise(); resetAutoDimTimer() }
+        b.btnFit.setOnClickListener { b.page.resetZoom(); resetAutoDimTimer() }
         b.toolView.setOnClickListener { applyTool(EditorTool.VIEW) }
         b.toolInk.setOnClickListener { applyTool(EditorTool.INK) }
         b.toolHighlight.setOnClickListener { applyTool(EditorTool.HIGHLIGHT) }
         b.toolNote.setOnClickListener { applyTool(EditorTool.NOTE) }
         b.toolSelect.setOnClickListener { applyTool(EditorTool.SELECT) }
-        b.btnColor.setOnClickListener { cycleColor() }
-        b.btnDelete.setOnClickListener { deleteSelected() }
-        b.btnUndo.setOnClickListener { model.undo() }
+        b.btnColor.setOnClickListener { cycleColor(); resetAutoDimTimer() }
+        b.btnDelete.setOnClickListener { deleteSelected(); resetAutoDimTimer() }
+        b.btnUndo.setOnClickListener { model.undo(); resetAutoDimTimer() }
+        b.btnMore.setOnClickListener { showMoreMenu(it) }
         b.btnConflicts.setOnClickListener { showConflict() }
         b.btnExport.setOnClickListener { confirmExport() }
         b.btnCancelExport.setOnClickListener { model.cancelExport() }
         b.btnNewer.setOnClickListener {
             model.sync.value.newerVersionId?.let { id -> home()?.let { h -> h.closeDetail(); h.openDetail(newInstance(id)) } }
         }
+        resetAutoDimTimer()
         model.show(versionId, getString(R.string.doc_self))
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -503,12 +531,43 @@ class DocumentViewerFragment : Fragment(), PdfPageView.Listener {
         model.tool = tool
         b.page.tool = tool
         b.page.selectedId = null
-        mapOf(EditorTool.VIEW to b.toolView, EditorTool.INK to b.toolInk, EditorTool.HIGHLIGHT to b.toolHighlight,
-            EditorTool.NOTE to b.toolNote, EditorTool.SELECT to b.toolSelect).forEach { (t, button) ->
-            button.isSelected = t == tool
-            button.alpha = if (t == tool) 1f else 0.6f
-        }
+        val activeColor = Color.parseColor("#2563EB")
+        val inactiveColor = Color.parseColor("#64748B")
+        b.toolView.setColorFilter(if (tool == EditorTool.VIEW) activeColor else inactiveColor)
+        b.toolInk.setColorFilter(if (tool == EditorTool.INK) activeColor else inactiveColor)
+        b.toolHighlight.setColorFilter(if (tool == EditorTool.HIGHLIGHT) activeColor else inactiveColor)
+        b.toolNote.setColorFilter(if (tool == EditorTool.NOTE) activeColor else inactiveColor)
+        b.toolSelect.setColorFilter(if (tool == EditorTool.SELECT) activeColor else inactiveColor)
         updateColorLabel()
+        resetAutoDimTimer()
+    }
+
+    private fun showMoreMenu(anchorView: View) {
+        resetAutoDimTimer()
+        val popup = PopupMenu(requireContext(), anchorView)
+        val menu = popup.menu
+        menu.add(0, 1, 0, getString(R.string.doc_color))
+        menu.add(0, 2, 1, getString(R.string.doc_delete))
+        menu.add(0, 3, 2, getString(R.string.doc_rotate))
+        menu.add(0, 4, 3, getString(R.string.doc_fit))
+        menu.add(0, 5, 4, getString(R.string.doc_export))
+        if (model.sync.value.conflicts.isNotEmpty()) {
+            menu.add(0, 6, 5, getString(R.string.doc_resolve))
+        }
+
+        popup.setOnMenuItemClickListener { item ->
+            resetAutoDimTimer()
+            when (item.itemId) {
+                1 -> cycleColor()
+                2 -> deleteSelected()
+                3 -> { binding?.page?.rotateClockwise(); resetAutoDimTimer() }
+                4 -> { binding?.page?.resetZoom(); resetAutoDimTimer() }
+                5 -> confirmExport()
+                6 -> showConflict()
+            }
+            true
+        }
+        popup.show()
     }
 
     private fun cycleColor() {
@@ -528,7 +587,6 @@ class DocumentViewerFragment : Fragment(), PdfPageView.Listener {
     private fun updateColorLabel() {
         val b = binding ?: return
         val color = if (model.tool == EditorTool.INK) model.inkColor else model.markColor
-        b.btnColor.setTextColor(android.graphics.Color.parseColor(color))
         b.btnColor.contentDescription = getString(R.string.doc_color_desc, color)
     }
 
@@ -607,6 +665,8 @@ class DocumentViewerFragment : Fragment(), PdfPageView.Listener {
     }
 
     override fun onDestroyView() {
+        autoDimRunnable?.let { autoDimHandler.removeCallbacks(it) }
+        autoDimRunnable = null
         binding?.page?.listener = null
         releaseRenderer()
         binding = null

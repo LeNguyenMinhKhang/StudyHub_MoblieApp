@@ -25,13 +25,7 @@ import com.doan.studyhub.user.databinding.*
 import com.doan.studyhub.user.ui.home.Home
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.combine
-import com.doan.studyhub.core.data.model.CallMode
-import com.doan.studyhub.core.data.model.CallStatus
-import com.doan.studyhub.user.ui.group.call.CallSessionManager
-import com.doan.studyhub.user.ui.group.call.GroupCallBannerViewModel
-import com.doan.studyhub.user.ui.group.call.GroupCallFragment
+import com.doan.studyhub.user.ui.chat.InitialsAvatarDrawable
 
 private fun Fragment.home() = parentFragment as? Home
 private fun Fragment.confirm(message: String, action: () -> Unit) {
@@ -104,6 +98,9 @@ abstract class GroupBrowserFragment : Fragment() {
     private var binding: FragmentGroupBinding? = null
     private var choices = emptyList<GroupSection>()
     private val groupId get() = arguments?.getString("group_id")
+    /** Members opens on MEMBERS; "Add member" opens on FRIENDS. */
+    private val initialSection get() = arguments?.getString("section")
+        ?.let { name -> GroupSection.values().firstOrNull { it.name == name } } ?: GroupSection.MEMBERS
     private var closing = false
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, state: Bundle?): View {
         closing = false
@@ -133,14 +130,14 @@ abstract class GroupBrowserFragment : Fragment() {
                 choices.getOrNull(position)?.let { if (model.state.value.section != it) model.show(it, groupId) }
             }
         }
-        model.show(if (groupId == null) model.state.value.section else GroupSection.MEMBERS, groupId)
+        model.show(if (groupId == null) model.state.value.section else initialSection, groupId)
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 model.state.collect { state ->
                     val current = binding ?: return@collect
                     val options = if (groupId == null) listOf(GroupSection.GROUPS, GroupSection.INCOMING)
                         else if (state.detail?.role == GroupRole.OWNER) listOf(GroupSection.MEMBERS, GroupSection.PENDING, GroupSection.FRIENDS)
-                        else listOf(GroupSection.MEMBERS)
+                        else listOf(GroupSection.MEMBERS, GroupSection.FRIENDS)
                     if (choices != options) {
                         choices = options
                         current.section.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, options.map { getString(sectionLabel(it)) })
@@ -165,7 +162,7 @@ abstract class GroupBrowserFragment : Fragment() {
                     }
                     state.openGroup?.let { id ->
                         model.opened()
-                        home()?.openDetail(GroupDetailFragment.newInstance(id))
+                        home()?.openDetail(GroupChatFragment.newInstance(id))
                     }
                     if (state.inaccessible && !closing) {
                         closing = true
@@ -185,7 +182,11 @@ abstract class GroupBrowserFragment : Fragment() {
 
 class GroupMembersFragment : GroupBrowserFragment() {
     override val model: GroupMembersViewModel by viewModels()
-    companion object { fun newInstance(id: String) = GroupMembersFragment().apply { arguments = Bundle().apply { putString("group_id", id) } } }
+    companion object {
+        fun newInstance(id: String, section: GroupSection = GroupSection.MEMBERS) = GroupMembersFragment().apply {
+            arguments = Bundle().apply { putString("group_id", id); putString("section", section.name) }
+        }
+    }
 }
 
 class CreateGroupFragment : Fragment() {
@@ -229,24 +230,23 @@ class CreateGroupFragment : Fragment() {
                     if (subjectIds != displayIds || current.subject.adapter == null) {
                         subjectIds = displayIds
                         current.subject.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item,
-                            listOf(getString(R.string.group_choose_subject)) + state.subjects.map { it.name } +
+                            listOf(getString(R.string.group_no_subject)) + state.subjects.map { it.name } +
                                 if (retainedSubject != null) listOf(getString(R.string.group_previous_subject)) else emptyList())
                     }
                     current.subject.setSelection(subjectIds.indexOf(state.subjectId) + 1)
                     current.name.isEnabled = !state.busy; current.description.isEnabled = !state.busy
                     current.subject.isEnabled = !state.busy && !state.loading
-                    current.btnSave.isEnabled = !state.busy && !state.loading && state.subjectId != null
+                    current.btnSave.isEnabled = !state.busy
                     current.btnRetry.isEnabled = !state.busy && !state.loading
                     current.status.text = state.error ?: when {
                         state.busy -> getString(R.string.group_saving)
                         state.loading -> getString(R.string.group_loading)
-                        state.subjects.isEmpty() -> getString(R.string.group_no_subjects)
                         else -> ""
                     }
                     rendering = false
                     state.created?.let { id ->
                         model.createdOpened()
-                        home()?.let { home -> home.closeDetail(); home.openDetail(GroupDetailFragment.newInstance(id)) }
+                        home()?.let { home -> home.closeDetail(); home.openDetail(GroupChatFragment.newInstance(id)) }
                     }
                 }
             }
@@ -256,11 +256,12 @@ class CreateGroupFragment : Fragment() {
     override fun onDestroyView() { binding?.subject?.onItemSelectedListener = null; binding = null; subjectIds = emptyList(); super.onDestroyView() }
 }
 
+/**
+ * Group info, opened from the chat's info icon: avatar and summary on top, an owner-only edit form,
+ * then icon rows (add member, members, documents, leave / archive). Subject is shown only when set.
+ */
 class GroupDetailFragment : Fragment() {
     private val model: GroupDetailViewModel by viewModels()
-    private val callModel: GroupCallBannerViewModel by viewModels()
-    /** Guards against opening the call screen twice from rapid taps. */
-    private var openingCall = false
     private var binding: FragmentGroupDetailBinding? = null
     private var rendering = false
     private var closing = false
@@ -278,6 +279,7 @@ class GroupDetailFragment : Fragment() {
         b.description.doAfterTextChanged { edit() }
         b.btnBack.setOnClickListener { home()?.closeDetail() }
         b.btnRetry.setOnClickListener { model.refresh() }
+        b.btnAddMember.setOnClickListener { home()?.openDetail(GroupMembersFragment.newInstance(id, GroupSection.FRIENDS)) }
         b.btnMembers.setOnClickListener { home()?.openDetail(GroupMembersFragment.newInstance(id)) }
         b.btnDocuments.setOnClickListener {
             home()?.openDetail(com.doan.studyhub.user.ui.group.document.DocumentLibraryFragment.newInstance(id))
@@ -289,22 +291,31 @@ class GroupDetailFragment : Fragment() {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 model.state.collect { state ->
                     val current = binding ?: return@collect
+                    val owner = state.detail?.role == GroupRole.OWNER
                     state.detail?.let { detail ->
                         current.title.text = detail.name
-                        current.summary.text = getString(R.string.group_summary, detail.subject.name, detail.memberCount,
-                            getString(if (detail.role == GroupRole.OWNER) R.string.group_owner else R.string.group_member))
+                        current.ivAvatar.setImageDrawable(InitialsAvatarDrawable(detail.name))
+                        val role = getString(if (owner) R.string.group_owner else R.string.group_member)
+                        current.summary.text = detail.subject?.let { getString(R.string.group_summary, it.name, detail.memberCount, role) }
+                            ?: getString(R.string.group_summary_no_subject, detail.memberCount, role)
+                        // Owners edit the description in the form below; others read it here.
+                        current.tvDescription.text = detail.description.orEmpty()
+                        current.tvDescription.isVisible = !owner && !detail.description.isNullOrBlank()
                     }
                     rendering = true
                     if (current.name.text.toString() != state.draftName) current.name.setText(state.draftName)
                     if (current.description.text.toString() != state.draftDescription) current.description.setText(state.draftDescription)
                     rendering = false
-                    val owner = state.detail?.role == GroupRole.OWNER
                     val ready = state.detail != null && !state.loading && !state.busy
+                    current.layoutEdit.isVisible = owner
                     current.name.isEnabled = owner && ready; current.description.isEnabled = owner && ready
-                    current.btnSave.isVisible = owner; current.btnArchive.isVisible = owner
-                    current.btnSave.isEnabled = ready; current.btnArchive.isEnabled = ready
-                    current.btnLeave.isVisible = state.detail != null && !owner; current.btnLeave.isEnabled = ready
-                    current.btnMembers.isEnabled = ready; current.btnDocuments.isEnabled = state.detail != null
+                    current.btnSave.isEnabled = ready
+                    current.btnArchive.isVisible = owner
+                    current.btnLeave.isVisible = state.detail != null && !owner
+                    enable(current.btnArchive, ready); enable(current.btnLeave, ready)
+                    enable(current.btnAddMember, ready); enable(current.btnMembers, ready)
+                    enable(current.btnDocuments, state.detail != null)
+                    current.btnRetry.isVisible = state.error != null
                     current.btnRetry.isEnabled = !state.loading && !state.busy
                     current.status.text = state.error ?: if (state.busy) getString(R.string.group_saving) else if (state.loading) getString(R.string.group_loading) else ""
                     if (state.saved) {
@@ -320,50 +331,12 @@ class GroupDetailFragment : Fragment() {
                 }
             }
         }
-        bindCallBanner()
         model.show(id)
     }
 
-    /** 7.4: banner refreshed every 10 s only while this screen is STARTED; no background ringing. */
-    private fun bindCallBanner() {
-        val b = requireNotNull(binding)
-        val session = CallSessionManager.get(requireContext())
-        fun open(mode: CallMode) {
-            if (openingCall) return
-            openingCall = true
-            home()?.openDetail(GroupCallFragment.newInstance(id, mode))
-        }
-        b.btnCallAudio.setOnClickListener { open(CallMode.AUDIO) }
-        b.btnCallVideo.setOnClickListener { open(CallMode.VIDEO) }
-        b.btnCallReturn.setOnClickListener { open(session.state.value.call?.initialMode ?: CallMode.AUDIO) }
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch { while (true) { callModel.refresh(id); delay(GroupCallBannerViewModel.POLL_MS) } }
-                combine(callModel.state, session.state) { banner, local -> banner to local }.collect { (banner, local) ->
-                    val current = binding ?: return@collect
-                    val mine = local.active && local.groupId == id
-                    val otherCall = local.active && local.groupId != id
-                    val call = banner.call
-                    current.btnCallReturn.isVisible = mine
-                    current.btnCallAudio.isVisible = !mine; current.btnCallVideo.isVisible = !mine
-                    val open = call != null && call.status != CallStatus.ENDED && call.status != CallStatus.FAILED
-                    current.btnCallAudio.setText(if (open) R.string.call_join_audio else R.string.call_start_audio)
-                    current.btnCallVideo.setText(if (open) R.string.call_join_video else R.string.call_start_video)
-                    val canEnter = !otherCall && !openingCall && (call == null || GroupCallBannerViewModel.joinable(call))
-                    current.btnCallAudio.isEnabled = canEnter; current.btnCallVideo.isEnabled = canEnter
-                    current.callStatus.text = when {
-                        mine -> getString(R.string.call_banner_mine)
-                        otherCall -> getString(R.string.call_other_group)
-                        call == null -> banner.error ?: if (banner.loaded) getString(R.string.call_banner_none) else getString(R.string.group_loading)
-                        call.status == CallStatus.ENDING -> getString(R.string.call_banner_ending)
-                        !GroupCallBannerViewModel.joinable(call) -> getString(R.string.call_banner_full, call.capacity)
-                        else -> getString(R.string.call_banner_active, call.participantCount, call.capacity, call.startedBy.displayName)
-                    }
-                }
-            }
-        }
-    }
-    override fun onResume() { super.onResume(); openingCall = false; model.refresh() }
+    private fun enable(row: View, enabled: Boolean) { row.isEnabled = enabled; row.alpha = if (enabled) 1f else 0.4f }
+
+    override fun onResume() { super.onResume(); model.refresh() }
     override fun onDestroyView() { binding = null; rendering = false; super.onDestroyView() }
     companion object { fun newInstance(id: String) = GroupDetailFragment().apply { arguments = Bundle().apply { putString("group_id", id) } } }
 }

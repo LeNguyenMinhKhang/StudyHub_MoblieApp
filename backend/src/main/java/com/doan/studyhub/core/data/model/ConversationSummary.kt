@@ -26,5 +26,9 @@ data class ConversationSummary(
     val lastMessageAt: String? = null,
 
     @SerialName("unread_count")
-    val unreadCount: Long = 0L
+    val unreadCount: Long = 0L,
+
+    /** Non-null for the conversation of a study group. */
+    @SerialName("study_group_id")
+    val studyGroupId: String? = null
 )
