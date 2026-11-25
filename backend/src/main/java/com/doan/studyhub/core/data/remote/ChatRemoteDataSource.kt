@@ -4,7 +4,10 @@ import com.doan.studyhub.core.data.SupabaseClient
 import com.doan.studyhub.core.data.model.ChatMessage
 import com.doan.studyhub.core.data.model.ConversationSummary
 import com.doan.studyhub.core.data.model.DirectChatRecipient
+import com.doan.studyhub.core.data.model.GroupConversation
+import com.doan.studyhub.core.data.model.MessageSender
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperation
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
@@ -35,6 +38,19 @@ open class ChatRemoteDataSource(
             "get_or_create_direct_conversation",
             buildJsonObject { put("p_target_id", targetUserId) }
         ).decodeAs<DirectChatRecipient>()
+    }
+
+    open suspend fun getOrCreateStudyGroupConversation(groupId: String): GroupConversation {
+        return postgrest.rpc(
+            "get_or_create_study_group_conversation",
+            buildJsonObject { put("p_group_id", groupId) }
+        ).decodeAs<GroupConversation>()
+    }
+
+    open suspend fun getSenderProfiles(userIds: List<String>): List<MessageSender> {
+        return postgrest.from("profiles").select(Columns.list("id", "display_name", "avatar_url")) {
+            filter { isIn("id", userIds) }
+        }.decodeList<MessageSender>()
     }
 
     open suspend fun getMessages(conversationId: String): List<ChatMessage> {

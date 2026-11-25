@@ -41,7 +41,7 @@ open class GroupRepository(
         val name = request.name.trim()
         val description = request.description?.trim()?.ifEmpty { null }
         validateText(name, description)
-        remote.create(request.copy(requestId = uuid(request.requestId), subjectId = uuid(request.subjectId), name = name, description = description))
+        remote.create(request.copy(requestId = uuid(request.requestId), subjectId = request.subjectId?.let(::uuid), name = name, description = description))
     }
     open suspend fun update(id: String, name: String, description: String?) = mutate {
         val cleanName = name.trim()

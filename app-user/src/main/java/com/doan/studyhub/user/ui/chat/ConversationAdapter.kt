@@ -68,12 +68,14 @@ class ConversationAdapter(
                 binding.tvLastMessage.setTextColor(binding.root.context.getColor(R.color.text_secondary))
             }
 
-            // Avatar cá nhân hoặc nhóm
+            // Avatar cá nhân, hoặc chữ cái đầu của tên nhóm khi là hội thoại nhóm học tập
+            val isGroup = item.studyGroupId != null
+            val fallback = if (isGroup) InitialsAvatarDrawable(item.title) else binding.root.context.getDrawable(R.drawable.ic_person)
             Glide.with(binding.root)
                 .load(item.avatarUrl)
                 .circleCrop()
-                .placeholder(R.drawable.ic_person)
-                .error(R.drawable.ic_person)
+                .placeholder(fallback)
+                .error(fallback)
                 .into(binding.ivAvatar)
 
             binding.root.setOnClickListener {

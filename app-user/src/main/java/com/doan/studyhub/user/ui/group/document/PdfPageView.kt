@@ -28,6 +28,7 @@ class PdfPageView @JvmOverloads constructor(context: Context, attrs: AttributeSe
         fun onNoteAt(point: PagePoint)
         fun onSelect(annotation: DisplayAnnotation?)
         fun onRenderSize(widthPx: Int, heightPx: Int)
+        fun onTouchUser() {}
     }
 
     var listener: Listener? = null
@@ -130,6 +131,7 @@ class PdfPageView @JvmOverloads constructor(context: Context, attrs: AttributeSe
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        listener?.onTouchUser()
         scaler.onTouchEvent(event)
         if (event.pointerCount > 1) { multiTouch = true; cancelGesture(); return true }
         val t = transform()

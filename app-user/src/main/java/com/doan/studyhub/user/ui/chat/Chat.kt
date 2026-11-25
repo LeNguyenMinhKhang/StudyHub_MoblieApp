@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.doan.studyhub.user.databinding.FragmentChatBinding
+import com.doan.studyhub.user.ui.group.GroupChatFragment
 import com.doan.studyhub.user.ui.home.Home
 import kotlinx.coroutines.launch
 
@@ -50,14 +51,17 @@ class Chat : Fragment() {
     private fun setupRecyclerView() {
         adapter = ConversationAdapter { item ->
 
-            // Mở hội thoại bằng conversationId.
-            // targetUserId không cần thiết khi đã có conversationId.
-            val detailFragment = DirectChatFragment.newInstance(
-                conversationId = item.conversationId,
-                targetUserId = null,
-                targetName = item.title,
-                targetAvatar = item.avatarUrl
-            )
+            // Hội thoại của nhóm học tập mở màn hình chat nhóm; còn lại là chat 1-1 theo conversationId.
+            val detailFragment = if (item.studyGroupId != null) {
+                GroupChatFragment.newInstance(item.studyGroupId!!, item.title)
+            } else {
+                DirectChatFragment.newInstance(
+                    conversationId = item.conversationId,
+                    targetUserId = null,
+                    targetName = item.title,
+                    targetAvatar = item.avatarUrl
+                )
+            }
 
             val home = parentFragment as? Home
             home?.openDetail(detailFragment)

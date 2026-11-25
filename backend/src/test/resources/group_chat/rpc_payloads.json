@@ -1,0 +1,31 @@
+{
+  "conversation": {
+    "name": "Nhóm chat 💬",
+    "group_id": "ea234ec3-7056-4c8d-972c-6e5e5049c003",
+    "member_count": 1,
+    "conversation_id": "0e827023-78ed-4c85-b7bb-bfe909d151f3"
+  },
+  "message": {
+    "id": "302621f3-e18d-4006-a757-4549a3c08ec6",
+    "type": "text",
+    "status": "sent",
+    "content": "Xin chào 👋",
+    "file_url": null,
+    "sender_id": "00000000-0000-0000-0000-000000000001",
+    "created_at": "2026-11-25T15:53:30.456825+00:00",
+    "conversation_id": "0e827023-78ed-4c85-b7bb-bfe909d151f3"
+  },
+  "conversations": [
+    {
+      "type": "group",
+      "title": "Nhóm chat 💬",
+      "avatar_url": null,
+      "unread_count": 0,
+      "study_group_id": "ea234ec3-7056-4c8d-972c-6e5e5049c003",
+      "conversation_id": "0e827023-78ed-4c85-b7bb-bfe909d151f3",
+      "last_message_at": "2026-11-25T15:53:30.456825+00:00",
+      "last_message_type": "text",
+      "last_message_content": "Xin chào 👋"
+    }
+  ]
+}

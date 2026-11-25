@@ -20,6 +20,7 @@
     <string name="doc_archived">Đã lưu trữ tài liệu.</string>
     <string name="doc_closed">Tài liệu không còn truy cập được.</string>
     <string name="doc_action_for">%1$s: %2$s</string>
+    <string name="doc_more">Công cụ khác</string>
 
     <string name="doc_self">Bạn</string>
     <string name="doc_page">Trang %1$d/%2$d</string>

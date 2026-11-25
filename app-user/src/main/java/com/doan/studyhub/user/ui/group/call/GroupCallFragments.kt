@@ -259,9 +259,14 @@ class GroupCallFragment : Fragment() {
         val controls = connected && !state.endingForAll
         b.btnMic.isEnabled = controls; b.btnCamera.isEnabled = controls; b.btnRoute.isEnabled = controls
         b.btnSwitch.isEnabled = controls && state.cameraOn
-        b.btnMic.setText(if (state.microphoneOn) R.string.call_mic_on else R.string.call_mic_off)
-        b.btnCamera.setText(if (state.cameraOn) R.string.call_cam_on else R.string.call_cam_off)
-        b.btnRoute.text = state.route?.let { getString(R.string.call_audio_route, routeName(it)) } ?: getString(R.string.call_audio_route_default)
+        // Icon buttons: the icon and the spoken label both describe the action available now.
+        styleToggle(b.btnMic, state.microphoneOn, R.drawable.ic_mic, R.drawable.ic_mic_off, R.string.call_mic_on, R.string.call_mic_off)
+        styleToggle(b.btnCamera, state.cameraOn, R.drawable.ic_videocam, R.drawable.ic_videocam_off, R.string.call_cam_on, R.string.call_cam_off)
+        b.btnRoute.contentDescription = state.route?.let { getString(R.string.call_audio_route, routeName(it)) } ?: getString(R.string.call_audio_route_default)
+        b.btnRoute.setImageResource(
+            if (state.route?.kind == AudioRoute.Kind.WIRED || state.route?.kind == AudioRoute.Kind.BLUETOOTH) R.drawable.ic_headset
+            else R.drawable.ic_volume_up
+        )
         b.btnLeave.isEnabled = state.active && !state.endingForAll
         b.btnEnd.isVisible = state.call?.canEnd == true && state.active
         b.btnEnd.isEnabled = controls
@@ -274,6 +279,14 @@ class GroupCallFragment : Fragment() {
             closing = true
             home()?.closeDetail()
         }
+    }
+
+    /** On = dark control with a white icon; off = light control with a slashed icon. */
+    private fun styleToggle(button: android.widget.ImageButton, on: Boolean, onIcon: Int, offIcon: Int, onLabel: Int, offLabel: Int) {
+        button.setImageResource(if (on) onIcon else offIcon)
+        button.contentDescription = getString(if (on) onLabel else offLabel)
+        button.setBackgroundResource(if (on) R.drawable.bg_call_control else R.drawable.bg_call_control_off)
+        button.imageTintList = android.content.res.ColorStateList.valueOf(if (on) 0xFFFFFFFF.toInt() else 0xFF111827.toInt())
     }
 
     private fun routeName(route: AudioRoute) = when (route.kind) {

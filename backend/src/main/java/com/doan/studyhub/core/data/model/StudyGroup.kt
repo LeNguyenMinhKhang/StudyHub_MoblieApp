@@ -14,7 +14,7 @@ data class GroupSummary(
     val id: String,
     val name: String,
     val description: String? = null,
-    val subject: GroupSubject,
+    val subject: GroupSubject? = null,
     val role: GroupRole,
     @SerialName("member_count") val memberCount: Int,
     @SerialName("created_at") val createdAt: String,
@@ -43,7 +43,7 @@ data class GroupInvitation(
     @SerialName("group_id") val groupId: String,
     @SerialName("group_name") val groupName: String,
     val description: String? = null,
-    val subject: GroupSubject,
+    val subject: GroupSubject? = null,
     val inviter: GroupPeer,
     val invitee: GroupPeer? = null
 )
@@ -60,6 +60,7 @@ data class GroupInvitationResult(val id: String, @SerialName("group_id") val gro
 @Serializable
 data class GroupMutationResult(@SerialName("group_id") val groupId: String, val status: String)
 
-data class CreateGroupRequest(val requestId: String, val subjectId: String, val name: String, val description: String? = null)
+/** [subjectId] is optional: a group may be created without a subject. */
+data class CreateGroupRequest(val requestId: String, val subjectId: String?, val name: String, val description: String? = null)
 
 enum class GroupResponse(val wire: String) { ACCEPT("accept"), DECLINE("decline") }

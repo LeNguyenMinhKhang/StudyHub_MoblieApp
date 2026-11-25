@@ -64,14 +64,26 @@ def setup():
         grant usage on schema auth to authenticated, anon;
         grant execute on function auth.uid() to authenticated, anon;
     """
-    for table in ("profiles", "subjects", "friendships", "blocks"):
+    for table in ("profiles", "subjects", "friendships", "blocks", "conversations", "conversation_members", "messages"):
         match = re.search(r"create table if not exists public\." + table + r" \([\s\S]*?\n\);", schema)
         if not match:
             raise RuntimeError(f"Missing baseline definition: {table}")
         baseline += match.group(0)
+    # Chat tables and the previous membership helper: the study-group-chat migration redefines them.
+    baseline += """
+        alter table public.conversations enable row level security;
+        alter table public.conversation_members enable row level security;
+        alter table public.messages enable row level security;
+        create function public.is_conversation_member(p_conversation_id uuid, p_user_id uuid)
+        returns boolean language sql security definer set search_path = 'public','auth','pg_temp' stable as
+        $$ select exists (select 1 from public.conversation_members where conversation_id = p_conversation_id and user_id = p_user_id); $$;
+    """
     sql(baseline)
     sql((ROOT / "supabase/migrations/20261027_friendship_rpc.sql").read_text(encoding="utf-8-sig"))
     sql((ROOT / "supabase/migrations/20261113100000_study_groups.sql").read_text(encoding="utf-8-sig"))
+    for name in ("20261108130000_block_direct_chat.sql", "20261116_chat_status_and_documents.sql",
+                 "20261125100000_study_group_chat.sql"):
+        sql((ROOT / "supabase/migrations" / name).read_text(encoding="utf-8-sig"))
     for index, actor in enumerate((OWNER, MEMBER, INVITEE, OUTSIDER, BANNED)):
         sql(f"insert into auth.users values('{actor}'); insert into public.profiles(id,username,display_name,is_banned) "
             f"values('{actor}','test_{index}','Test {index}',{str(actor == BANNED).lower()});")
@@ -92,6 +104,8 @@ def write_payload_fixtures():
         "invitation_result": invitation,
         "mutation_result": value(f"select public.archive_study_group('{gid}');"),
     }
+    # Created last so the list payloads above keep their single group.
+    payloads["detail_no_subject"] = value(f"select public.create_study_group('{uuid.uuid4()}',null,'Nhóm không môn',null);")
     target = ROOT / "backend/src/test/resources/study_groups/rpc_payloads.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payloads, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -288,7 +302,7 @@ class GroupsTest(unittest.TestCase):
             self.fail_sql(f"select public.invite_study_group_member('{gid}','{target}');", code)
         self.join(gid)
         self.fail_sql(f"select public.invite_study_group_member('{gid}','{MEMBER}');", "G0008")
-        self.fail_sql(f"select public.invite_study_group_member('{gid}','{INVITEE}');", "G0005", MEMBER)
+        self.fail_sql(f"select public.invite_study_group_member('{gid}','{INVITEE}');", "G0007", MEMBER)  # any member may invite, but only own friends
         self.friends()
         iid = self.invite(gid)["id"]
         sql("create function public.test_fail_accept() returns trigger language plpgsql as $$ begin raise exception 'injected'; end $$; "

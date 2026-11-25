@@ -1,24 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:background="#111827">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:padding="8dp">
-        <Button android:id="@+id/btnBack" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/group_back" />
+        <ImageButton android:id="@+id/btnBack" android:layout_width="48dp" android:layout_height="48dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/group_back" android:src="@drawable/ic_arrow_back" app:tint="@android:color/white" />
         <TextView android:id="@+id/tvTitle" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/call_title" android:textColor="@android:color/white" android:textSize="18sp" android:textStyle="bold" android:accessibilityHeading="true" />
-        <Button android:id="@+id/btnDocuments" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/call_documents" />
+        <ImageButton android:id="@+id/btnDocuments" android:layout_width="48dp" android:layout_height="48dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/call_documents" android:src="@drawable/ic_folder" app:tint="@android:color/white" />
     </LinearLayout>
     <TextView android:id="@+id/tvStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="12dp" android:textColor="@android:color/white" android:accessibilityLiveRegion="polite" />
     <TextView android:id="@+id/tvNotice" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="12dp" android:textColor="#FDE68A" android:accessibilityLiveRegion="polite" />
     <Button android:id="@+id/btnRejoin" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:text="@string/call_rejoin" android:visibility="gone" />
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/grid" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:padding="4dp" />
-    <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content">
-        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:padding="4dp">
-            <Button android:id="@+id/btnMic" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/call_mic_off" />
-            <Button android:id="@+id/btnCamera" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/call_cam_off" />
-            <Button android:id="@+id/btnSwitch" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/call_switch_camera" />
-            <Button android:id="@+id/btnRoute" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/call_audio_route_default" />
-            <Button android:id="@+id/btnLeave" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/call_leave" />
-            <Button android:id="@+id/btnEnd" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/call_end_all" android:visibility="gone" />
+    <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content" android:scrollbars="none">
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center" android:padding="12dp">
+            <ImageButton android:id="@+id/btnMic" android:layout_width="56dp" android:layout_height="56dp" android:layout_marginHorizontal="6dp" android:background="@drawable/bg_call_control_off" android:contentDescription="@string/call_mic_off" android:src="@drawable/ic_mic_off" app:tint="#111827" />
+            <ImageButton android:id="@+id/btnCamera" android:layout_width="56dp" android:layout_height="56dp" android:layout_marginHorizontal="6dp" android:background="@drawable/bg_call_control_off" android:contentDescription="@string/call_cam_off" android:src="@drawable/ic_videocam_off" app:tint="#111827" />
+            <ImageButton android:id="@+id/btnSwitch" android:layout_width="56dp" android:layout_height="56dp" android:layout_marginHorizontal="6dp" android:background="@drawable/bg_call_control" android:contentDescription="@string/call_switch_camera" android:src="@drawable/ic_cameraswitch" app:tint="@android:color/white" />
+            <ImageButton android:id="@+id/btnRoute" android:layout_width="56dp" android:layout_height="56dp" android:layout_marginHorizontal="6dp" android:background="@drawable/bg_call_control" android:contentDescription="@string/call_audio_route_default" android:src="@drawable/ic_volume_up" app:tint="@android:color/white" />
+            <ImageButton android:id="@+id/btnLeave" android:layout_width="56dp" android:layout_height="56dp" android:layout_marginHorizontal="6dp" android:background="@drawable/bg_call_control" android:contentDescription="@string/call_leave" android:src="@drawable/ic_logout" app:tint="@android:color/white" />
+            <ImageButton android:id="@+id/btnEnd" android:layout_width="56dp" android:layout_height="56dp" android:layout_marginHorizontal="6dp" android:background="@drawable/bg_call_end" android:contentDescription="@string/call_end_all" android:src="@drawable/ic_call_end" android:visibility="gone" app:tint="@android:color/white" />
         </LinearLayout>
     </HorizontalScrollView>
 </LinearLayout>

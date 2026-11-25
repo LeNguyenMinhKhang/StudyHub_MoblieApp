@@ -56,6 +56,27 @@ class GroupRepositoryTest {
         assertEquals(2, requests.size)
     }
 
+    @Test fun groupCanBeCreatedWithoutSubject() = runBlocking {
+        val requests = mutableListOf<CreateGroupRequest>()
+        val remote = object : GroupRemoteDataSource() {
+            override suspend fun create(request: CreateGroupRequest): GroupDetail { requests += request; return detail.copy(subject = null) }
+        }
+        val repo = GroupRepository(remote, api, { actor }, { "session" })
+        val result = repo.create(CreateGroupRequest(key, null, "Nhóm không môn")) as ApiResponse.Success
+        assertNull(result.data.subject)
+        assertNull(requests.single().subjectId)
+    }
+
+    @Test fun decodesGroupAndInvitationWithoutSubject() {
+        val payloads = Json.parseToJsonElement(requireNotNull(javaClass.getResource("/study_groups/rpc_payloads.json")).readText()).jsonObject
+        val group = Json.decodeFromJsonElement<GroupDetail>(payloads.getValue("detail_no_subject"))
+        assertNull(group.subject)
+        val invitation = Json.decodeFromString<GroupInvitation>(
+            """{"id":"i","status":"pending","created_at":"2026-11-25T00:00:00Z","group_id":"g","group_name":"G","description":null,"subject":null,"inviter":{"id":"u","display_name":"U","avatar_url":null}}"""
+        )
+        assertNull(invitation.subject)
+    }
+
     @Test fun staleSessionResultIsDiscardedEvenForSameAccount() = runBlocking {
         val pending = CompletableDeferred<GroupDetail>()
         var sessionKey = "first"
