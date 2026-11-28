@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Danh sách cuộc trò chuyện 1-1
-Hệ thống PHẢI cho phép người dùng đã xác thực tải danh sách các cuộc hội thoại 1-1 mà mình tham gia. Mỗi mục hội thoại hiển thị thông tin bạn chat (tên, avatar), trích đoạn tin nhắn mới nhất, thời gian gửi và số lượng tin nhắn chưa đọc.
+Hệ thống SHALL cho phép người dùng đã xác thực tải danh sách các cuộc hội thoại 1-1 mà mình tham gia. Mỗi mục hội thoại hiển thị thông tin bạn chat (tên, avatar), trích đoạn tin nhắn mới nhất, thời gian gửi và số lượng tin nhắn chưa đọc.
 
 #### Scenario: Tải danh sách hội thoại thành công
 - **WHEN** người dùng mở tab Chat hoặc thực hiện kéo để làm mới (pull-to-refresh)
@@ -15,7 +15,7 @@ Hệ thống PHẢI cho phép người dùng đã xác thực tải danh sách c
 ---
 
 ### Requirement: Bắt đầu hoặc mở cuộc trò chuyện 1-1
-Hệ thống PHẢI đảm bảo mỗi cặp người dùng chỉ có tối đa một cuộc trò chuyện 1-1. Khi người dùng chọn nhắn tin với một người khác (từ profile hoặc danh sách bạn bè), hệ thống sẽ mở cuộc trò chuyện hiện có hoặc tạo mới nếu chưa tồn tại.
+Hệ thống SHALL đảm bảo mỗi cặp người dùng chỉ có tối đa một cuộc trò chuyện 1-1. Khi người dùng chọn nhắn tin với một người khác (từ profile hoặc danh sách bạn bè), hệ thống sẽ mở cuộc trò chuyện hiện có hoặc tạo mới nếu chưa tồn tại.
 
 #### Scenario: Mở cuộc trò chuyện đã tồn tại
 - **WHEN** người dùng chọn nhắn tin với một người bạn đã từng chat trước đó
@@ -28,7 +28,7 @@ Hệ thống PHẢI đảm bảo mỗi cặp người dùng chỉ có tối đa 
 ---
 
 ### Requirement: Gửi và nhận tin nhắn văn bản
-Người dùng PHẢI có thể gửi tin nhắn văn bản trong phòng chat và nhận tin nhắn tức thì qua kết nối thời gian thực (Supabase Realtime).
+Người dùng SHALL có thể gửi tin nhắn văn bản trong phòng chat và nhận tin nhắn tức thì qua kết nối thời gian thực (Supabase Realtime).
 
 #### Scenario: Gửi tin nhắn văn bản thành công
 - **WHEN** người dùng nhập nội dung văn bản hợp lệ và nhấn Gửi
@@ -43,7 +43,7 @@ Người dùng PHẢI có thể gửi tin nhắn văn bản trong phòng chat v�
 ---
 
 ### Requirement: Gửi hình ảnh trong cuộc trò chuyện
-Hệ thống PHẢI cho phép người dùng chọn hình ảnh từ thiết bị, tải lên Supabase Storage và gửi dưới dạng tin nhắn ảnh.
+Hệ thống SHALL cho phép người dùng chọn hình ảnh từ thiết bị, tải lên Supabase Storage và gửi dưới dạng tin nhắn ảnh.
 
 #### Scenario: Gửi ảnh thành công
 - **WHEN** người dùng chọn ảnh từ thư viện và nhấn Gửi

@@ -24,6 +24,7 @@ class GroupViewModelsTest {
         var response = CompletableDeferred<ApiResponse<GroupInvitationResult>>()
         var responses = 0
         var detailReads = 0
+        val invites = mutableListOf<String>()
         var mutationResult: ApiResponse<GroupMutationResult> = ApiResponse.Success(GroupMutationResult("group", "removed"), "test")
         var updateResult: ApiResponse<GroupDetail> = failure(ErrorType.NETWORK_UNAVAILABLE)
         var invitationRead: suspend () -> ApiResponse<GroupPage<GroupInvitation>> = { ApiResponse.Success(GroupPage(incomingRows), "test") }
@@ -40,6 +41,9 @@ class GroupViewModelsTest {
         override suspend fun members(id: String, cursor: GroupCursor?, limit: Int) = memberPages(id, cursor)
         override suspend fun create(request: CreateGroupRequest): ApiResponse<GroupDetail> { creates += request; return createResponse.await() }
         override suspend fun respond(id: String, action: GroupResponse): ApiResponse<GroupInvitationResult> { responses++; return response.await() }
+        override suspend fun invite(id: String, target: String): ApiResponse<GroupInvitationResult> {
+            invites += target; return ApiResponse.Success(GroupInvitationResult("invite-$target", id, "pending"), "test")
+        }
         override suspend fun remove(id: String, target: String) = mutationResult
         override suspend fun leave(id: String) = mutationResult
         override suspend fun archive(id: String) = mutationResult
@@ -202,15 +206,68 @@ class GroupViewModelsTest {
         assertTrue(vm.state.value.rows.all { it.actions.isEmpty() })
     }
 
-    @Test fun clearingSubjectPreventsSubmittingPreviouslySelectedSubject() = runBlocking {
+    @Test fun clearingSubjectCreatesGroupWithoutSubject() = runBlocking {
         val repo = Fake()
         val vm = CreateGroupViewModel(SavedStateHandle(), repo, externalScope = this)
         vm.edit("Group", "", "subject")
         vm.edit("Group", "", null)
+        repo.createResponse.complete(failure(ErrorType.NETWORK_UNAVAILABLE))
         vm.submit(); yield()
         assertNull(vm.state.value.subjectId)
-        assertTrue(repo.creates.isEmpty())
+        assertEquals(1, repo.creates.size)
+        assertNull(repo.creates.single().subjectId)
+    }
+
+    @Test fun subjectListFailureDoesNotBlockCreatingWithoutSubject() = runBlocking {
+        val repo = Fake()
+        val vm = CreateGroupViewModel(SavedStateHandle(), repo, externalScope = this, loadSubjectList = { throw java.io.IOException("offline") })
+        vm.loadSubjects(); yield()
         assertNotNull(vm.state.value.error)
+        vm.edit("Nhóm không môn", "", null)
+        repo.createResponse.complete(failure(ErrorType.NETWORK_UNAVAILABLE))
+        vm.submit(); yield()
+        assertEquals(listOf(null), repo.creates.map { it.subjectId })
+    }
+
+    @Test fun ordinaryMemberCanInviteOwnFriendsWithoutReadingPendingInvitations() = runBlocking {
+        val repo = Fake()
+        repo.groupRead = ApiResponse.Success(group.copy(role = GroupRole.MEMBER), "test")
+        repo.invitationRead = { fail("Only the owner may read pending invitations"); failure(ErrorType.PERMISSION_DENIED) }
+        val friends = object : FriendshipRepository() {
+            override suspend fun list(kind: FriendshipListKind, cursor: FriendshipCursor?, limit: Int) =
+                ApiResponse.Success(FriendshipPage(listOf("friend").map { id ->
+                    FriendshipListItem(id, "time", "accepted", "outgoing", FriendshipPeer(id, id, id))
+                }), "test")
+        }
+        val vm = GroupBrowserViewModel(repo, friends, this)
+        vm.show(GroupSection.FRIENDS, "group"); yield()
+        assertEquals(GroupSection.FRIENDS, vm.state.value.section)
+        val row = vm.state.value.rows.single()
+        assertEquals(listOf(GroupAction.INVITE), row.actions)
+        vm.act(row, GroupAction.INVITE); repeat(10) { yield() }
+        assertEquals(listOf("friend"), repo.invites)
+        assertNull(vm.state.value.actionError)
+        assertTrue("an invited friend leaves the invite list", vm.state.value.rows.isEmpty())
+    }
+
+    @Test fun ordinaryMemberStillCannotOpenPendingInvitations() = runBlocking {
+        val repo = Fake()
+        repo.groupRead = ApiResponse.Success(group.copy(role = GroupRole.MEMBER), "test")
+        repo.invitationRead = { fail("Only the owner may read pending invitations"); failure(ErrorType.PERMISSION_DENIED) }
+        val vm = GroupBrowserViewModel(repo, FriendshipRepository(), this)
+        vm.show(GroupSection.PENDING, "group"); yield()
+        assertEquals(GroupSection.MEMBERS, vm.state.value.section)
+    }
+
+    @Test fun groupAndInvitationWithoutSubjectBuildRows() = runBlocking {
+        val repo = Fake()
+        repo.groupPages = { ApiResponse.Success(GroupPage(listOf(group.copy(subject = null))), "test") }
+        repo.incomingRows = listOf(repo.incomingRows.single().copy(subject = null, description = null))
+        val vm = GroupBrowserViewModel(repo, FriendshipRepository(), this)
+        vm.show(GroupSection.GROUPS); yield()
+        assertEquals("", vm.state.value.rows.single().subtitle)
+        vm.show(GroupSection.INCOMING); yield()
+        assertEquals("Bạn", vm.state.value.rows.single().subtitle)
     }
 
     @Test fun bannedAccountRefreshImmediatelyClearsDetail() = runBlocking {

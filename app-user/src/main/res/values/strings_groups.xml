@@ -10,10 +10,8 @@
     <string name="group_name">Tên nhóm (1–100 ký tự)</string>
     <string name="group_description">Mô tả (không bắt buộc, tối đa 1.000 ký tự)</string>
     <string name="group_subject">Môn học</string>
-    <string name="group_choose_subject">Chọn môn học</string>
     <string name="group_previous_subject">Môn đã chọn trước đó (cần kiểm tra lại)</string>
     <string name="group_reload_subjects">Tải lại môn học</string>
-    <string name="group_no_subjects">Chưa có môn học đang hoạt động.</string>
     <string name="group_back">Quay lại</string>
     <string name="group_more">Tải thêm</string>
     <string name="group_retry">Tải lại</string>
