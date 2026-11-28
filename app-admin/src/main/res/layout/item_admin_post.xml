@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="@android:color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <!-- Người đăng -->
+        <TextView
+            android:id="@+id/tvPostAuthor"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tên người đăng"
+            android:textColor="#1F2937"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvPostEmail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="email@example.com"
+            android:textSize="12sp"
+            android:textColor="#64748B"
+            android:layout_marginTop="2dp" />
+
+        <!-- Tiêu đề bài viết -->
+        <TextView
+            android:id="@+id/tvPostTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tiêu đề bài viết"
+            android:textColor="#111827"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:layout_marginTop="12dp" />
+
+        <!-- Nội dung -->
+        <TextView
+            android:id="@+id/tvPostContent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Nội dung bài viết"
+            android:textColor="#4B5563"
+            android:textSize="14sp"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:layout_marginTop="6dp" />
+
+        <!-- Môn học -->
+        <TextView
+            android:id="@+id/tvPostSubject"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Môn học: Lập trình Android"
+            android:textColor="#2563EB"
+            android:textSize="12sp"
+            android:layout_marginTop="8dp" />
+
+        <!-- Ngày đăng -->
+        <TextView
+            android:id="@+id/tvPostDate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ngày đăng"
+            android:textColor="#9CA3AF"
+            android:textSize="12sp"
+            android:layout_marginTop="4dp" />
+
+        <!-- Thống kê -->
+        <TextView
+            android:id="@+id/tvPostStats"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="0 bình luận  •  0 lượt thích  •  0 tệp"
+            android:textColor="#6B7280"
+            android:textSize="12sp"
+            android:layout_marginTop="10dp" />
+
+        <!-- Nút thao tác -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="12dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPostDetail"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="Chi tiết"
+                android:textSize="12sp"
+                android:textColor="#2563EB"
+                app:cornerRadius="8dp"
+                app:backgroundTint="#E8F0FE" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDeletePost"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:text="Xóa"
+                android:textSize="12sp"
+                android:textColor="@android:color/white"
+                app:cornerRadius="8dp"
+                app:backgroundTint="#DC2626" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

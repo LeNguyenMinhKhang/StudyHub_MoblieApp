@@ -1,28 +1,37 @@
+
 package com.doan.studyhub.admin.ui.subjects
 
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
-import com.doan.studyhub.admin.databinding.FragmentSubjectsBinding
+import androidx.fragment.app.viewModels
 
 class SubjectsFragment : Fragment() {
 
-    private var _binding: FragmentSubjectsBinding? = null
-    private val binding get() = requireNotNull(_binding)
+    private val subjectViewModel: AdminSubjectViewModel by viewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = FragmentSubjectsBinding.inflate(inflater, container, false)
-        return binding.root
-    }
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(
+                ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+            )
 
-    override fun onDestroyView() {
-        _binding = null
-        super.onDestroyView()
+            setContent {
+                MaterialTheme {
+                    AdminSubjectScreen(
+                        viewModel = subjectViewModel
+                    )
+                }
+            }
+        }
     }
 }

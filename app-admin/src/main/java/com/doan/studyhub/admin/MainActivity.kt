@@ -131,6 +131,14 @@ class MainActivity : AppCompatActivity() {
             .commit()
     }
 
+    // Mở danh sách bài viết của một User cụ thể
+    fun openPostsForUser(authorId: String, authorName: String) {
+        switchFragment(
+            PostsFragment.newInstance(authorId, authorName),
+            "Bài viết của $authorName"
+        )
+    }
+
     private fun navigateToLogin() {
         val intent = Intent(this, AdminLoginActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
